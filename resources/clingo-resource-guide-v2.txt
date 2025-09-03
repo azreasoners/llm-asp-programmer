@@ -1,0 +1,1387 @@
+## Chapter 2: Quickstart
+
+This chapter provides an introductory example using a simple Towers of Hanoi puzzle to illustrate Answer Set Programming (ASP) problem modeling and the gringo language.
+
+The puzzle involves three pegs (let's call them 'a', 'b', 'c') and four disks of different sizes (numbered 1 to 4, with 1 being the largest and 4 the smallest). The goal is to move all disks from the starting peg 'a' to the target peg 'c'.
+
+**Rules for Moving Disks:**
+1.  Only the topmost disk on a peg can be moved.
+2.  A disk cannot be moved onto a peg that already holds a smaller disk.
+
+**Figure 1: Towers of Hanoi: Initial and Goal Situation.**
+This figure shows the initial state and the desired goal state for the Towers of Hanoi puzzle.
+* **Initial State (Peg 'a'):** A stack of four disks is shown on the leftmost peg ('a'). The disks are arranged from bottom to top in decreasing size: disk 1 (largest) at the bottom, followed by disk 2, disk 3, and disk 4 (smallest) at the top.
+* **Intermediate Peg ('b'):** The middle peg ('b') is initially empty.
+* **Goal State (Peg 'c'):** The rightmost peg ('c') shows the target configuration represented by a dashed outline. The goal is to have all four disks stacked on peg 'c' in the same order (1 at the bottom, 4 at the top).
+
+We will specify the problem uniformly, separating the instance description from the general encoding. The problem asks: given an initial disk placement, a goal situation, and a maximum number of moves $n$, is there a sequence of exactly $n$ moves that achieves the goal?
+
+### 2.1 Problem Instance
+
+We describe the specific puzzle setup using facts.
+
+* **Pegs:** Predicate `peg/1` defines the pegs.
+    ```prolog
+    peg(a;b;c). % Represents peg(a). peg(b). peg(c).
+    ```
+    *(Note: The ';' acts as syntactic sugar for defining multiple facts.)*
+
+* **Disks:** Predicate `disk/1` defines the disks, numbered 1 to 4 (smaller number means larger disk).
+    ```prolog
+    disk(1..4). % Represents disk(1). disk(2). disk(3). disk(4).
+    ```
+    *(Note: '1..4' represents an integer interval.)*
+
+* **Initial State:** Predicate `init_on/2` specifies the starting position of each disk (Disk, Peg).
+    ```prolog
+    init_on(1..4,a). % Represents init_on(1,a). init_on(2,a). init_on(3,a). init_on(4,a).
+    ```
+
+* **Goal State:** Predicate `goal_on/2` specifies the target position of each disk (Disk, Peg).
+    ```prolog
+    goal_on(1..4,c). % Represents goal_on(1,c). goal_on(2,c). goal_on(3,c). goal_on(4,c).
+    ```
+
+* **Number of Moves:** Predicate `moves/1` specifies the allowed number of moves.
+    ```prolog
+    moves(15).
+    ```
+
+These facts describe the puzzle shown in Figure 1, requiring a solution in 15 moves.
+
+### 2.2 Problem Encoding
+
+We encode the general logic for solving Towers of Hanoi using rules with variables (starting with uppercase letters). The encoding is structured into Generate, Define, Test, and Display parts.
+
+* **Variables:**
+    * `D`: Represents a disk.
+    * `P`: Represents a peg.
+    * `T`: Represents a time step (move number).
+    * `M`: Represents the total number of moves allowed.
+
+```prolog
+% Generate: Defines possible solution candidates (sequences of moves).
+% At each time step T from 1 to M, exactly one move(D,P,T) must occur.
+% This uses a cardinality constraint { L : C } = k, meaning exactly k literals
+% L satisfying condition C must be true.
+{ move(D,P,T) : disk(D), peg(P) } = 1 :- moves(M), T=1..M.
+
+% Define: Defines auxiliary predicates describing the state and derived properties.
+% move(D,T): True if disk D is moved at time T (target peg P is ignored).
+move(D,T) :- move(D,_,T). % '_' is an anonymous variable.
+
+% on(D,P,T): True if disk D is on peg P at time T.
+on(D,P,0) :- init_on(D,P). % Initial state at time 0.
+on(D,P,T) :- move(D,P,T). % State after a move at time T.
+on(D,P,T+1) :- on(D,P,T), not move(D,T+1), not moves(T). % Inertia: Disk stays if not moved, up to time M.
+
+% blocked(D',P,T): True if peg P at time T contains a disk smaller than D' (where D' = D-1).
+% A disk D is blocked if a disk D_smaller > D is on the same peg.
+% Since disk numbers are inverse to size, this means D_smaller is blocked if on(D_larger, P, T) holds where D_larger < D_smaller.
+% Let D' = D-1. If disk D is on peg P at T, then disk D-1 (or any smaller number/larger disk) is blocked at T+1.
+blocked(D-1, P, T+1) :- on(D, P, T), not moves(T).
+% If disk D' is blocked on peg P at T, any larger disk D'' (D'' < D') is also blocked.
+blocked(D-1, P, T) :- blocked(D, P, T), disk(D). % Propagate 'blocked' status to larger disks (smaller numbers).
+% Note: blocked(0,P,T) can become true, conveniently blocking moves of disk 1 to an occupied peg.
+
+% Test: Defines integrity constraints to eliminate invalid solutions.
+% Rule: A disk D cannot be moved to peg P at time T if a larger disk (D-1) is blocked on P at T.
+% This prevents moving larger disks onto smaller ones and moving a disk back to its previous location implicitly.
+:- move(D,P,T), blocked(D-1,P,T).
+
+% Rule: A disk D cannot be moved at time T if it is blocked (a smaller disk is underneath it).
+:- move(D,T), on(D,P,T-1), blocked(D,P,T).
+
+% Rule: The goal state must be reached at the final time step M.
+:- goal_on(D,P), not on(D,P,M), moves(M).
+
+% Rule: At any time T, a disk D must be on exactly one peg. (Improves efficiency).
+:- { on(D,P,T) : peg(P) } != 1, disk(D), moves(M), T=1..M.
+
+% Display: Specifies which predicates should be shown in the output.
+% Only show the move actions.
+#show move/3.
+```
+
+### 2.3 Problem Solution
+
+To find a solution (an answer set), you can use `clingo` or `gringo | clasp`:
+
+```bash
+clingo toh_ins.lp toh_enc.lp
+# or
+gringo toh_ins.lp toh_enc.lp | clasp
+```
+
+The output will show:
+* Version information.
+* Status messages ("Reading...", "Solving...").
+* The answer set found (if one exists).
+
+Example Output:
+```
+clingo version 4.4.0
+Reading from toh_ins.lp...
+Solving...
+Answer: 1
+move(4,b,1) move(3,c,2) move(4,c,3) move(2,b,4) move(4,a,5) move(3,b,6) move(4,b,7) move(1,c,8) move(4,c,9) move(3,a,10) move(4,a,11) move(2,c,12) move(4,b,13) move(3,c,14) move(4,c,15)
+SATISFIABLE
+
+Models       : 1+
+Calls        : 1
+Time         : 0.017s (Solving: 0.01s 1st Model: 0.01s Unsat: 0.00s)
+CPU Time     : 0.010s
+```
+
+* **Answer: 1:** Indicates the first answer set found.
+* **move(...) atoms:** The sequence of moves forming the solution. For example, `move(4,b,1)` means move disk 4 to peg 'b' at step 1. (Output formatting may vary slightly).
+* **SATISFIABLE:** Confirms a solution exists.
+* **Models: 1+:** Shows one answer set was found. The '+' indicates the search stopped after finding one; more might exist (though not for this specific 15-move instance). To find all solutions, add `0` to the command line.
+* **Statistics:** Provides timing information.
+
+### 2.4 Summary
+
+* **Modeling:** ASP problems are often modeled by separating the instance (facts) from the encoding (rules).
+* **Encoding Structure:** The Generate-Define-Test(-Display) methodology is common.
+    * **Generate:** Create solution candidates (e.g., sequences of moves).
+    * **Define:** Derive properties and states based on candidates (e.g., disk locations, blocked states).
+    * **Test:** Eliminate invalid candidates using integrity constraints (rules with empty heads, starting with `:-`).
+    * **Display:** Control output using `#show`.
+* **Solving:** Use tools like `clingo` (or `gringo` piped to `clasp`) to find answer sets, which correspond to solutions.
+
+---
+
+## Chapter 3: Input Languages
+
+This chapter details the input languages accepted by the Potassco tools: `gringo`, `clingo`, and `clasp`.
+
+### 3.1 Input Language of gringo and clingo
+
+`gringo` is a grounder: it transforms logic programs with variables into equivalent variable-free (propositional) programs. `clasp` is a solver that computes answer sets for these ground programs. `clingo` integrates both grounding and solving.
+
+The input language described here applies to both `gringo` and `clingo`. Logic programs are usually provided in text files.
+
+#### 3.1.1 Terms
+
+Terms are the basic data structures, primarily used as arguments in atoms.
+
+**Figure 2: Grammar for Terms.**
+This figure illustrates the syntax rules for constructing terms in gringo/clingo. It defines `term` recursively based on `simpleterm`, `function`, and `tuple`.
+* `simpleterm` can be an `integer`, `constant`, `string`, `variable`, the anonymous variable `_`, `#sup` (supremum), or `#inf` (infimum).
+* `constant` starts with a lowercase letter (`[a-z]`) followed by letters, numbers, or underscores (`[A-Za-z0-9_']`).
+* `string` is enclosed in double quotes (`"`), with escapes for `\`, newline (`\n`), and `"` (`\"`).
+* `variable` starts with an uppercase letter (`[A-Z]`) followed by letters, numbers, or underscores (`[A-Za-z0-9_']`).
+* `function` consists of a `constant` (the function name/symbol) followed by a parenthesized, comma-separated list of one or more `term` arguments.
+* `tuple` is a parenthesized, comma-separated list of zero or more `term` elements. A trailing comma is needed to distinguish a single-element tuple `(t,)` from a parenthesized term `(t)` (which is equivalent to `t`).
+
+**Types of Terms:**
+
+* **Simple Terms:**
+    * **Integers:** Standard integer numbers (e.g., `42`, `-5`). Can involve arithmetic expressions (see Section 3.1.7) that are evaluated during grounding.
+    * **Constants:** Symbolic names starting with a lowercase letter (e.g., `a`, `pegA`, `max_value`). Leading underscores are allowed (e.g., `_privateConstant`).
+    * **Strings:** Sequences of characters enclosed in double quotes (e.g., `"hello world"`, `"file/path"`). Special characters (`\`, `"`, newline) must be escaped (`\\`, `\"`, `\n`).
+    * **Variables:** Placeholders starting with an uppercase letter (e.g., `X`, `Disk`, `PegName`). They represent any ground (variable-free) term during grounding.
+    * **Anonymous Variable (`_`):** Represents a unique variable each time it appears. It's used when the specific value doesn't matter or isn't used elsewhere in the rule.
+    * **Special Constants (`#inf`, `#sup`):** Represent symbolic minimum and maximum values in the term order. `#inf` is the smallest term, `#sup` is the largest. Used primarily with aggregates (Section 3.1.12).
+
+* **Complex Terms:**
+    * **(Uninterpreted) Functions:** Structures with a name (like a constant) and one or more arguments, which are themselves terms. Example: `location(disk1, pegA)`, `move(Disk, FromPeg, ToPeg)`.
+    * **Tuples:** Ordered sequences of terms enclosed in parentheses, without a name. Examples: `()`, `(1, 2, 3)`, `(a, X, f(Y))`. A single-element tuple needs a trailing comma, e.g., `(42,)` is a tuple, but `(42)` is just the integer 42.
+
+**Term Order:** There's a total order defined on variable-free terms (details in Section 3.1.8). Generally: Integers < Constants < Functions/Tuples.
+
+**Herbrand Universe:** The set of all possible variable-free terms constructible from the constants and function symbols defined in a program.
+
+#### 3.1.2 Normal Programs and Integrity Constraints
+
+The core language consists of rules:
+
+* **Fact:** $A_0.$
+    * Asserts that atom $A_0$ is unconditionally true.
+    * $A_0$ is an atom (syntactically like a constant or function).
+
+* **Rule:** $A_0 \leftarrow L_1, \dots, L_n.$ (Written as $A_0 :- L_1, \dots, L_n.$ in gringo/clingo)
+    * States that if the body ($L_1, \dots, L_n$) is true, then the head ($A_0$) must be true.
+    * $A_0$ is an atom.
+    * Each $L_i$ is a literal: either an atom $A$ (positive literal) or its default negation `not A` (negative literal).
+
+* **Integrity Constraint:** $\leftarrow L_1, \dots, L_n.$ (Written as $:- L_1, \dots, L_n.$)
+    * States that the body ($L_1, \dots, L_n$) cannot be true simultaneously. Acts as a filter, eliminating potential solutions (answer sets) where the body holds.
+
+**Answer Sets:**
+An answer set is a set of ground atoms that represents a solution. Informally, it's a model (a set of atoms making all rules true) where every atom in the set has a non-circular derivation from the program rules. Default negation `not A` is true if atom `A` cannot be derived (i.e., `A` is not in the answer set). Formal definitions involve concepts like program reducts and stability.
+
+**Examples:**
+
+1.  **Positive Cycle:**
+    ```prolog
+    a :- b.
+    b :- a.
+    ```
+    * The only answer set is the empty set `{}`. If `a` were true, it would need `b` to be true, which in turn needs `a`. This circular dependency prevents `{a, b}` from being an answer set.
+
+2.  **Choice through Negation:**
+    ```prolog
+    a :- not b.
+    b :- not a.
+    ```
+    * Two answer sets: `{a}` and `{b}`. If `b` is false (`not b` is true), `a` can be derived. If `a` is false (`not a` is true), `b` can be derived. `{}` is not a model. `{a, b}` is a model but not an answer set (neither `a` nor `b` can be derived if both are assumed true).
+
+3.  **Facts and Integrity Constraints:**
+    ```prolog
+    a :- not b.
+    b :- not a.
+    c.          % Fact: c must be true.
+    :- c, not b. % Integrity Constraint: Cannot have c true and b false.
+    ```
+    * `c` must be in any answer set.
+    * The integrity constraint forces `b` to be true (otherwise the constraint body `c, not b` would be true).
+    * For `b` to be true via its rule `b :- not a`, `a` must be false.
+    * The only answer set is `{b, c}`.
+
+**Variables and Grounding:**
+Programs usually contain variables. The grounder (`gringo` or `clingo`'s grounding part) replaces variables with constants and function terms from the program's Herbrand universe to create an equivalent propositional program.
+
+* **Rule Safety:** For grounding to be finite and well-defined, rules must typically be *safe*. A rule is safe if every variable occurring in the rule also appears in at least one *positive* literal in the body. This ensures variables are bound to specific values before potentially infinite domains (like integers) or negated conditions are evaluated.
+    * Example: `fly(X) :- bird(X), not neg_fly(X).` is safe because `X` appears in the positive body literal `bird(X)`.
+    * Example: `p(X) :- not q(X).` is unsafe.
+    * Example: `p(X) :- q(Y), X = Y + 1.` is safe if `q(Y)` provides ground values for `Y`.
+
+#### 3.1.3 Classical Negation
+
+Besides default negation (`not`), gringo/clingo support classical (or strong) negation, denoted by `-`.
+
+* `-A` represents the explicit negation of atom `A`. It's treated as a distinct atom.
+* It implies an implicit integrity constraint: $:- A, -A.$ (You cannot derive both `A` and `-A`).
+* Unlike `not A` (which holds if `A` cannot be derived), `-A` must be explicitly derived by some rule.
+* It's possible for an answer set to contain neither `A` nor `-A`, representing an unknown state.
+
+**Example (Rewriting Example 3.2):**
+```prolog
+% Original rule: neg_fly(X) :- penguin(X).
+-fly(X) :- penguin(X). % Penguins explicitly cannot fly.
+
+% Original rule: fly(X) :- bird(X), not neg_fly(X).
+fly(X) :- bird(X), not -fly(X). % Birds fly unless explicitly known otherwise.
+
+% Original rule: neg_fly(X) :- bird(X), not fly(X).
+-fly(X) :- bird(X), not fly(X). % If a bird is not derived to fly, assume it explicitly cannot fly.
+
+% Implicit constraints generated for instances like tweety and tux:
+% :- fly(tweety), -fly(tweety).
+% :- fly(tux), -fly(tux).
+```
+If facts `bird(tux).` and `penguin(tux).` are given, `-fly(tux)` is derived. If we then add `fly(tux).` as a fact, the implicit constraint $:- fly(tux), -fly(tux).$ is violated, leading to no answer sets.
+
+#### 3.1.4 Disjunction
+
+Disjunction in rule heads is allowed, using `;`.
+
+* **Disjunctive Fact:** $A_0 ; \dots ; A_m.$
+* **Disjunctive Rule:** $A_0 ; \dots ; A_m \leftarrow L_1, \dots, L_n.$ (Written as $A_0 ; \dots ; A_m :- L_1, \dots, L_n.$)
+
+**Semantics:**
+If the body is true, at least one of the head atoms ($A_0, \dots, A_m$) must be true. Answer sets containing disjunctions satisfy a minimality criterion: they don't include atoms unnecessarily.
+
+* Example: `a ; b.` has two answer sets: `{a}` and `{b}`. `{a, b}` is not an answer set due to minimality.
+* Example:
+    ```prolog
+    a ; b.
+    a :- b.
+    b :- a.
+    ```
+    This program has one answer set: `{a, b}`. The rules `a :- b.` and `b :- a.` force both `a` and `b` to be included if either is chosen by `a ; b.`.
+
+**Note:** Disjunction can increase computational complexity. Often, "choice constructs" (cardinality constraints, see Section 3.1.12) are preferred unless the specific semantics of disjunction is needed.
+
+#### 3.1.5 Double Negation and Head Literals
+
+* **Double Default Negation (`not not A`):** This literal is true if and only if atom `A` is true in the model (answer set). However, unlike a positive literal `A`, `not not A` does *not* require `A` to have an acyclic derivation. It only checks if `A` is part of the model being considered.
+
+    * Example:
+        ```prolog
+        a :- not not b.
+        b :- not not a.
+        ```
+        This has two answer sets: `{}` and `{a, b}`. The positive cycle in the similar program without `not not` (Example 3.1) is broken here, allowing `{a, b}`.
+
+* **Negative Literals in Heads:** Rules can have `not A` or `not not A` in the head (though not common with classical negation `-A`).
+    * `not A_0 :- Body.` is equivalent to the integrity constraint $:- Body, not not A_0.$ (If Body holds, $A_0$ cannot be false).
+    * `not not A_0 :- Body.` is equivalent to the integrity constraint $:- Body, not A_0.$ (If Body holds, $A_0$ cannot be underived/false).
+
+    * Example:
+        ```prolog
+        fly(X) :- bird(X), not not fly(X). % If it's a bird, it might fly (no derivation needed).
+        not fly(X) :- penguin(X). % Equivalent to ':- penguin(X), not not fly(X)'. If it's a penguin, it must not fly.
+        ```
+        Compared to Example 3.2, this version doesn't explicitly derive `-fly(tux)`. The answer set where Tweety doesn't fly would simply not contain `fly(tweety)`.
+
+#### 3.1.6 Boolean Constants
+
+* `#true`: A built-in atom that is always true.
+* `#false`: A built-in atom that is always false.
+
+These can be used in rules like any other atom.
+
+* Example:
+    ```prolog
+    #true.         % Trivially satisfied fact.
+    :- #false.     % Trivially satisfied integrity constraint (body is false).
+    a :- b, #true.  % Equivalent to 'a :- b.'
+    :- c, #false. % This integrity constraint can never be violated.
+    ```
+
+#### 3.1.7 Built-in Arithmetic Functions
+
+Standard arithmetic operations are evaluated during grounding when their arguments become variable-free.
+
+* **Operators:**
+    * `+` (Addition)
+    * `-` (Subtraction, Unary Minus)
+    * `*` (Multiplication)
+    * `/` (Integer Division)
+    * `\` (Modulo)
+    * `**` (Exponentiation)
+    * `|...|` (Absolute Value, e.g., `|X-Y|`)
+    * `&` (Bitwise AND)
+    * `?` (Bitwise OR)
+    * `^` (Bitwise XOR)
+    * `~` (Bitwise Complement)
+
+* **Evaluation:** Arithmetic is performed before comparisons or other rule processing during grounding.
+* **Safety:** An occurrence of a variable within an arithmetic function *only* counts as a positive occurrence for safety checks if the term is "simple": contains exactly one variable occurrence and only uses `+`, `-`, `*` with non-zero integer constants.
+    * Safe: `p(X) :- q(2*(X+1)).` (Variable `X` is considered grounded by `p/1`)
+    * Unsafe: `p(X) :- q(X+X).`
+    * Unsafe: `p(X) :- q(0*X).`
+
+**Example:**
+```prolog
+left(7). right(2).
+plus(L+R) :- left(L), right(R).  % Derives plus(9).
+times(L*R) :- left(L), right(R).  % Derives times(14).
+power(L**R) :- left(L), right(R). % Derives power(49).
+```
+
+#### 3.1.8 Built-in Comparison Predicates
+
+Terms can be compared using built-in predicates, evaluated during grounding.
+
+* **Operators:**
+    * `=` (Equal)
+    * `!=` (Not Equal)
+    * `<` (Less Than)
+    * `<=` (Less Than or Equal)
+    * `>` (Greater Than)
+    * `>=` (Greater Than or Equal)
+
+* **Order:** A total order exists on ground terms:
+    * `#inf` < Numbers < Symbolic Constants < Compound Terms < `#sup`.
+    * Numbers are ordered numerically.
+    * Symbolic constants are ordered lexicographically (e.g., `a < b`, `pegA < pegB`).
+    * Compound terms (functions, tuples) are ordered lexicographically by name (if any), then by arity, then lexicographically by arguments. E.g., `f(a) < f(b)`, `f(a) < g(a)`, `(1,2) < (1,3)`.
+
+* **Usage:** Comparison literals are used like other literals in rule bodies.
+    * Example: `eligible(X) :- person(X), age(X, A), A >= 18.`
+
+* **Safety:** Comparison predicates `=`, `!=`, `<`, `<=`, `>`, `>=` do *not* count as positive occurrences for variables within them. Variables must be bound by other positive literals in the rule body. Exception: `=` can sometimes bind variables via unification (see below).
+
+* **Unification with `=`:** The equality predicate `=` can be used for unification, binding variables to values or complex structures.
+    * Example: `process(Data) :- event(ID, Type, Data), Type = "critical".` (Selects events where Type is "critical").
+    * Example: `coord(X,Y) :- point(P), P = point(X,Y).` (Extracts X and Y from a term `point(X,Y)`).
+    * Unification must be directional (one side must be ground before the other can be matched). `p(X) :- X=Y, Y=X.` is not allowed.
+    * Unification works with simple arithmetic terms (see Section 3.1.7) on one side. `p(X) :- f(X, X+1) = Y, data(Y).`
+
+**Example (Arithmetic and Comparison):**
+```prolog
+num(1). num(2).
+lt(X,Y) :- X < Y, num(X), num(Y). % Derives lt(1,2).
+test(X) :- X*X > 3, num(X).        % Derives test(2).
+```
+
+#### 3.1.9 Intervals
+
+Integer ranges can be specified compactly using `i..j`, where `i` and `j` are ground integer terms.
+
+* Represents all integers $k$ such that $i \le k \le j$.
+* Expansion during grounding depends on context:
+    * **In Head:** Expands conjunctively (creating multiple facts/rule heads).
+        * `p(1..3).` expands to `p(1). p(2). p(3).`
+        * `grid(1..2, 1..2).` expands to `grid(1,1). grid(1,2). grid(2,1). grid(2,2).` (Cross product).
+    * **In Body (typically with `=`):** Expands disjunctively (creating multiple rule instances or choices).
+        * `p(X) :- X = 1..3.` expands to rules equivalent to `p(1). p(2). p(3).` (Or internally, choice rules).
+        * `grid(X,Y) :- X = 1..S, Y = 1..S, size(S).` expands disjunctively over X and Y for a given S.
+
+* **Safety:** Variables used in the bounds (like `S` in `1..S`) do not count as positive occurrences and must be bound elsewhere (e.g., by `size(S)`).
+
+#### 3.1.10 Pooling
+
+Alternatives for terms within arguments can be specified using `;`.
+
+* Syntax: `f(arg1, (X;Y), arg3)` is shorthand for `f(arg1, X, arg3)` and `f(arg1, Y, arg3)`. (note: the parentheses are needed).
+* Expansion: Similar to intervals.
+    * **In Head:** Conjunctive expansion. `p(a;b).` expands to `p(a). p(b).` `p((a;b), (1;2)).` expands to `p(a,1). p(a,2). p(b,1). p(b,2).`
+    * **In Body (typically with `=`):** Disjunctive expansion. `p(X) :- X = (a;b).` is equivalent to rules generating `p(a).` and `p(b).`.
+
+**Example:**
+```prolog
+peg(a;b;c). % Expands to peg(a). peg(b). peg(c).
+test((thing), (a;b;c;d)). % Expands to test(thing,a). test(thing,b). test(thing,c). test(thing,d).
+```
+
+#### 3.1.11 Conditions and Conditional Literals
+
+A conditional literal allows embedding a condition within a literal: $L_0 : L_1, \dots, L_n$
+
+* $L_0$ is the main literal.
+* $L_1, \dots, L_n$ form the condition.
+* The colon `:` separates the literal from its condition.
+* If $n=0$, it's just the literal $L_0$.
+
+**Semantics:** The conditional literal behaves like $L_0$ if the condition ($L_1, \dots, L_n$) is true. More precisely, it often represents a collection of ground literals.
+
+* **In Rule Body:** A conditional literal $L_0 : Cond$ acts like a *conjunction* of all ground instances of $L_0$ for which $Cond$ holds. If the condition $Cond$ is empty for all instances, the conjunction is empty and thus true.
+    * Example: `all_available :- available(X) : person(X).` means `all_available` is true if `available(jane)` AND `available(john)` are true (assuming `person(jane). person(john).`).
+
+* **In Rule Head:** A conditional literal $L_0 : Cond$ acts like a *disjunction* of all ground instances of $L_0$ for which $Cond$ holds. (Use with caution, often choice aggregates are preferred).
+    * Example: `event_occurs :- occurs(E, T) : event(E), time(T).` acts like a disjunction over all possible `occurs(E, T)` atoms.
+
+* **Comma vs. Semicolon:** Within a rule body, commas separate literals. If a conditional literal appears, its condition part ($L_1, \dots, L_n$) also uses commas. To avoid ambiguity, if other body literals follow the conditional literal, the *entire* conditional literal must end with a semicolon `;`.
+    * Example: `next(X,Z) :- set(X), ( not some_intermediate(Y) : set(Y), X < Y, Y < Z ); set(Z), X < Z.` Here, the conditional literal `( not some_intermediate(Y) : ... )` is terminated by `;` because `set(Z), X < Z` follows it in the rule body.
+
+**Safety and Variables:**
+* Variables within the *condition* part ($L_1, \dots, L_n$) are local to the condition unless they also appear outside it (global variables).
+* Variables in $L_0$ must either be global or be bound by a positive literal within the condition part.
+* Global variable instantiation takes precedence. Avoid name clashes between global and local variables.
+* It's recommended to use only domain predicates (predicates whose truth value is fixed and fully determined during grounding, not involved in choices or negation cycles) or built-ins within conditions for predictable expansion into conjunctions/disjunctions.
+
+#### 3.1.12 Aggregates
+
+Aggregates compute a summary value (count, sum, min, max) over a set of elements, allowing rules to depend on these collective properties.
+
+**Aggregate Elements:** Have the form `t : L_1, ..., L_n`, where `t` is a term tuple (often containing weights) and $L_1, \dots, L_n$ is a condition (literals). If the condition is empty, it can be omitted. If `t` is empty, the term part can be omitted.
+
+**Body Aggregates:** Used in rule bodies or integrity constraints.
+Syntax: `$LowerBound <_1 \#aggregate \{ \text{elements} \} <_2 UpperBound$`
+
+* `\#aggregate`: One of `#count`, `#sum`, `#sum+`, `#min`, `#max`.
+* `elements`: A set of aggregate elements `t_i : Condition_i`.
+* `t_i`: Term tuples. For `#sum`, `#sum+`, `#min`, `#max`, the first term in `t_i` is typically the weight. `#count` doesn't require weights in `t_i`.
+* `Condition_i`: Literals determining if the element is included.
+* `<_1, <_2`: Comparison operators (`<`, `<=`, `=`, `!=`, `>`, `>=`).
+* `LowerBound, UpperBound`: Terms defining the bounds.
+* One or both bounds and comparisons are optional. Default comparison is `<=`.
+
+**Semantics (Body):**
+1.  For each element `t_i : Condition_i`, check if `Condition_i` holds in the current partial model.
+2.  Collect the tuples `t_i` for which the condition holds into a *set* (duplicates based on the *entire* tuple `t_i` are removed).
+3.  Apply the `#aggregate` function to this set:
+    * `#count`: Number of elements in the set.
+    * `#sum`: Sum of the first terms (weights) of the elements in the set. Result is 0 for an empty set.
+    * `#sum+`: Like `#sum`, but only includes positive weights. Result is 0 for an empty set.
+    * `#min`: Minimum first term (weight) in the set. Result is `#sup` for an empty set.
+    * `#max`: Maximum first term (weight) in the set. Result is `#inf` for an empty set.
+4.  Check if the aggregate result satisfies the bounds `$LowerBound <_1 \dots <_2 UpperBound$`. The aggregate atom is true if the bounds are met.
+
+**Example (Body):**
+```prolog
+% At least 3 enrolled students required.
+:- #count { student(S) : enrolled(S) } < 3.
+
+% Total cost must not exceed 100.
+:- #sum { C, Item : item(Item), cost(Item, C) } > 100.
+
+% Ensure max load is <= 5. Need max_load/1 defined elsewhere.
+max_load_ok :- #max { L, P : process(P), load(P, L) } <= 5.
+
+% Get total count into variable N.
+total_items(N) :- N = #count { Item : item(Item) }. % Use with caution if item/1 is not a domain predicate.
+```
+
+**Set Semantics:** Aggregates operate on sets of *elements*. To count items with the same weight multiple times, ensure the term tuples `t_i` are distinct.
+* `#sum { 3:a; 3:b }` (if `a` and `b` true) $\rightarrow$ Sum is over `{3}` $\rightarrow$ Result 3.
+* `#sum { 3,a:a; 3,b:b }` (if `a` and `b` true) $\rightarrow$ Sum is over `{(3,a); (3,b)}` $\rightarrow$ Result 6.
+
+**Head Aggregates (Choice Rules / Cardinality/Weight Constraints):** Used in rule heads to choose subsets of atoms.
+Syntax: `$LowerBound <_1 \#aggregate \{ t_1 : L_{1,head} : L_{1,cond}; \dots \} <_2 UpperBound \leftarrow Body.$`
+(Written as `$LB <_1 \#agg \{ t_1 : L_{1,h} : L_{1,c} ; \dots \} <_2 UB :- Body.$`)
+
+* Similar structure to body aggregates, but elements have an extra component: the *head literal* ($L_{i,head}$), separated by a second colon.
+* The head literal $L_{i,head}$ is the atom potentially chosen to be true if this element contributes to satisfying the aggregate bounds.
+* $L_{i,cond}$ is the condition for the element.
+
+**Semantics (Head):** Allows choosing a subset of the head literals ($L_{1,head}, \dots$) such that when the aggregate function is applied to the corresponding tuples ($t_1, \dots$) of the *chosen* literals, the bounds are satisfied.
+
+**Shortcuts (especially for `#count`):**
+
+* `{ L_1 : C_1; ...; L_n : C_n } = K :- Body.` (Cardinality constraint)
+    * Shortcut for a `#count` head aggregate.
+    * Chooses exactly `K` literals $L_i$ for which condition $C_i$ holds.
+    * Internally, `gringo` generates unique term tuples `t_i` for each distinct literal $L_i$.
+    * Example: `{ enroll(C) : course(C,_,_) } = 1 :- student(S).` (Choose exactly one course to enroll in).
+
+* `K { L_1 : C_1; ...; L_n : C_n } M :- Body.`
+    * General form: Choose between `K` and `M` literals.
+    * `K` or `M` (and associated comparisons) can be omitted (defaulting to $0 \le \dots \le \infty$).
+    * Example: `{a; b; c}.` means choose any subset of `{a, b, c}` (equivalent to $0 \le \#count\{\dots\} \le 3$).
+
+**Non-ground Aggregates & Safety:**
+* Variables appearing only in the bounds (`LowerBound`, `UpperBound`) are global.
+* Variables within an aggregate element (`t_i`, `L_{i,head}`, `L_{i,cond}`) must be bound either globally (outside the aggregate) or by a positive literal within the element's condition $L_{i,cond}$.
+* Avoid name clashes between global and local (element-specific) variables.
+
+**Using Aggregates with `=`:**
+* `Var = #aggregate { ... }` can bind `Var` to the aggregate result.
+* **Warning:** If the literals inside the aggregate are not fixed domain predicates (i.e., if their truth value depends on choices made elsewhere), using `=` can cause the grounder to create rules for *every possible value* the aggregate might take, potentially leading to a large ground program. It's generally safer to use comparison operators (`<=`, `>=`) directly with aggregates unless the aggregate content is fully determined at grounding time.
+
+#### 3.1.13 Optimization
+
+ASP allows finding *optimal* answer sets based on minimizing or maximizing criteria, often expressed using weak constraints or minimize/maximize statements.
+
+**Weak Constraints:**
+Syntax: $: \sim L_1, \dots, L_n. [Weight @ Level, Term_1, \dots, Term_k]$
+
+* Looks like an integrity constraint but starts with $: \sim$ (colon-tilde).
+* If the body ($L_1, \dots, L_n$) is true in an answer set, the constraint is "violated" and contributes a cost.
+* `Weight`: An integer weight associated with violating this constraint.
+* `Level`: An integer priority level (higher numbers are more important). Optional, defaults to 0.
+* `Term_1, \dots, Term_k`: Additional terms used to distinguish violations (ensures set semantics for costs at the same level).
+
+**Semantics (Optimization):**
+1.  Find all regular answer sets of the program (ignoring weak constraints initially).
+2.  For each answer set, calculate a cost vector. For each priority level `p`, sum the `Weight`s of all weak constraints at level `p` whose bodies are true in that answer set.
+3.  Optimal answer sets are those with the lexicographically smallest cost vector (comparing costs level by level, starting from the highest priority).
+
+**Minimize/Maximize Statements:** Shorthand for weak constraints.
+Syntax:
+`#minimize { W_1 @ P_1, T_1 : Body_1; ...; W_n @ P_n, T_n : Body_n }.`
+`#maximize { W_1 @ P_1, T_1 : Body_1; ...; W_n @ P_n, T_n : Body_n }.`
+
+* Each element `W_i @ P_i, T_i : Body_i` corresponds to one weak constraint:
+    * For `#minimize`: $: \sim Body_i. [W_i @ P_i, T_i]$
+    * For `#maximize`: $: \sim Body_i. [-W_i @ P_i, T_i]$ (Maximizing is minimizing the negative).
+* `W_i`: Weight (integer).
+* `P_i`: Priority level (integer, optional, default 0).
+* `T_i`: Distinguishing term tuple.
+* `Body_i`: Condition (literals).
+
+**Example:**
+```prolog
+% Choose exactly one hotel
+{ hotel(1..5) } = 1.
+% ... facts for cost(Hotel, Cost) and star(Hotel, Stars) ...
+
+% Optimization criteria:
+% 1. Minimize cost (Priority 1)
+#minimize { C@1, H : hotel(H), cost(H,C) }.
+% 2. Maximize stars (Priority 0 - less important)
+#maximize { S@0, H : hotel(H), star(H,S) }.
+```
+This finds the hotel that has the minimum cost, and among those with the same minimum cost, chooses the one with the maximum stars.
+
+#### 3.1.14 External Functions
+
+Custom functions written in scripting languages (Lua or Python) can be embedded and called during grounding. Requires building `clingo` with script support enabled.
+
+**Embedding Scripts:**
+```prolog
+#script(lua)
+-- Lua code goes here
+function my_lua_func(arg1, arg2)
+  -- process args...
+  local result = -- compute result
+  return result -- can return numbers, strings, Symbol objects, or lists/tables of these
+end
+#end.
+
+#script(python)
+# Python code goes here
+import clingo
+
+def my_python_func(arg1, arg2):
+  # args are clingo.Symbol objects
+  # access properties like arg1.number, arg1.string, arg1.name, arg1.arguments
+  result = # compute result
+  # return numbers, strings, or use clingo.Number(), clingo.String(), clingo.Function()
+  # can also return lists of these
+  return result
+#end.
+```
+
+**Calling External Functions:**
+Use `@` before the function name in terms.
+`result(@my_lua_func(X, Y)) :- input(X, Y).`
+
+* **Arguments:** Passed as `clingo.Symbol` objects to the script function.
+* **Return Values:**
+    * Single value: Used directly in the term.
+    * List/Table: Creates multiple ground instances (like intervals or pools).
+* **Safety:** Variables passed to external functions (`@func(X)`) do *not* count as positive occurrences. They must be bound elsewhere.
+* **Determinism:** Functions are assumed to be deterministic (same input yields same output during one grounding process). Non-deterministic functions can lead to undefined behavior.
+* **Errors:** Errors during script execution typically cause the current rule instantiation to be dropped, and a warning is issued.
+
+**Example (Greatest Common Divisor):**
+```prolog
+#script(python)
+import clingo
+def gcd(a, b):
+  # a, b are clingo.Symbol objects
+  na = a.number
+  nb = b.number
+  while nb:
+    na, nb = nb, na % nb
+  return clingo.Number(na)
+#end.
+
+p(210, 213).
+p(1365, 385).
+gcd_result(X, Y, @gcd(X,Y)) :- p(X,Y).
+```
+This computes `gcd_result(210, 213, 3).` and `gcd_result(1365, 385, 7).`
+
+#### 3.1.15 Meta-Statements
+
+Directives that control the grounder/solver or provide annotations, rather than defining program logic.
+
+* **Comments:**
+    * `%` to end of line.
+    * `%* ... *%` for block comments.
+
+* **`#show` Statements:** Control which atoms/terms appear in the output answer sets.
+    * `#show predicate/arity.` If any such statement exists, *only* atoms matching the specified predicates/arities are shown. All others are hidden.
+    * `#show term : Condition.` Shows the ground term `term` if the `Condition` (literals) holds in the answer set. This form does *not* automatically hide other atoms. Variables in `term` and `Condition` must be safe (bound by positive literals in `Condition`).
+    * `#show.` Hides *all* atoms. Useful in combination with the second form to show only specific terms.
+
+* **`#const` Statements:** Define symbolic constants with default values.
+    * Syntax: `#const constant_name = term.`
+    * `term` must be ground (no variables, pools, or intervals).
+    * Provides a default value that can be overridden from the command line (`--const constant_name=new_value`).
+    * Example: `#const max_items = 10.`
+
+* **`#external` Statements:** Declare certain atoms as "external".
+    * Syntax: `#external atom_template : Condition.`
+    * Atoms matching `atom_template` (instantiated via `Condition`) are marked external.
+    * **Effect:** Prevents the solver from simplifying away occurrences of these atoms in rule bodies, even if they don't appear in any rule head within the program parts being considered. Essential for multi-shot solving (Section 4), where the truth value of these atoms might be assigned externally between solver calls.
+    * Safety rules apply similar to rules (template is head, condition is body). `Condition` should ideally use domain predicates.
+    * Example: `#external query(T) : step(T).` Declares `query(T)` as external for all steps T.
+
+* **`#program` Statements:** Organize code into named program parts, primarily for incremental/multi-shot solving (Section 4).
+    * Syntax: `#program part_name(param1, ..., paramN).`
+    * `part_name` is the name, `param`s are symbolic constants acting as parameters for this part. Parentheses can be omitted if no parameters.
+    * All rules/statements following this directive belong to this program part until the next `#program` or end-of-file.
+    * Rules not under any `#program` directive belong to the default `#program base.`
+    * Grounding/solving typically starts with `base`. Other parts can be grounded via scripting, substituting parameters with ground terms.
+    * Example:
+        ```prolog
+        #program initial_state.
+        init(at(robot, room1)).
+        #program step(T). % Parameter T for time step
+        holds(F, T) :- holds(F, T-1), not changed(F, T).
+        #program base. % Back to the base part
+        robot(r1).
+        ```
+
+* **`#include` Statements:** Include another file's content.
+    * Syntax: `#include "filename.lp".`
+    * Acts as if the content of `filename.lp` was pasted at that location.
+    * Search path: Relative to current working directory, then relative to the file containing the `#include`.
+    * `#program` directives do not affect includes; included content is processed based on the `#program` context active *at the point of inclusion*.
+
+### 3.2 Input Language of clasp
+
+`clasp` (and `clingo` when run in clasp mode via `--mode=clasp`) is the solver component. It primarily accepts:
+
+1.  **Ground Logic Programs:**
+    * **aspif format:** The internal format used between modern `gringo`/`clingo` and `clasp`.
+    * **smodels format:** The numerical format output by older `gringo`/`lparse` and selectable in modern `gringo` (often used when piping `gringo` to `clasp`).
+
+2.  **Propositional Logic (SAT):**
+    * **DIMACS CNF format:** Standard format for SAT solvers.
+
+3.  **MaxSAT:**
+    * **DIMACS WCNF format:** Weighted CNF format for MaxSAT problems. Requires `--opt-sat` flag for `clasp` to interpret correctly.
+
+4.  **Pseudo-Boolean (PB) Constraints:**
+    * **OPB / WBO format:** Formats for pseudo-Boolean optimization problems.
+
+**Typical Usage (ASP):**
+```bash
+gringo [gringo_options] input_files | clasp [clasp_options] [num_models]
+# OR using integrated clingo:
+clingo [clingo_options] input_files [num_models]
+```
+Where `num_models` is the maximum number of answer sets to compute (0 for all).
+
+**Direct Usage (Other Formats):**
+```bash
+clasp [clasp_options] [num_models] input_file_in_supported_format
+# OR
+clingo --mode=clasp [clasp_options] [num_models] input_file_in_supported_format
+```
+`clasp` usually auto-detects the format, except for distinguishing CNF from WCNF (needs `--opt-sat`).
+
+---
+
+## Chapter 6: Examples
+
+This chapter illustrates solving common problems using ASP with the Potassco tools.
+
+### 6.1 n-Coloring
+
+**Problem:** Given a directed graph and a number $n$, can each node be assigned one of $n$ colors such that no two adjacent nodes (connected by an edge) have the same color? This is NP-complete for $n \ge 3$.
+
+#### 6.1.1 Problem Instance
+
+We represent the graph using facts. `node/1` defines nodes, `edge/2` defines directed edges.
+
+**Instance (Graph from Figure 5):**
+**Figure 5: A Directed Graph with 6 Nodes and 17 Edges.**
+This figure shows a graph with nodes labeled 1 through 6. Arrows indicate directed edges. For example, there are edges from node 1 to nodes 2, 3, and 4. Node 2 has edges to 4, 5, and 6, etc. (The specific connections match the facts below).
+
+```prolog
+% Nodes
+node(1..6). % Defines nodes 1, 2, 3, 4, 5, 6.
+
+% (Directed) Edges
+edge(1,(2;3;4)).  % Edges 1->2, 1->3, 1->4
+edge(2,(4;5;6)).  % Edges 2->4, 2->5, 2->6
+edge(3,(1;4;5)).  % Edges 3->1, 3->4, 3->5
+edge(4,(1;2)).  % Edges 4->1, 4->2
+edge(5,(3;4;6)).  % Edges 5->3, 5->4, 5->6
+edge(6,(2;3;5)).  % Edges 6->2, 6->3, 6->5
+```
+*(Recall ';' and '..' expand into multiple facts).*
+
+#### 6.1.2 Problem Encoding
+
+This encoding finds an $n$-coloring for any graph instance defined as above.
+
+```prolog
+% Default number of colors (can be overridden)
+#const n = 3.
+
+% Generate: Assign exactly one color (from 1 to n) to each node.
+% Uses a cardinality constraint shortcut.
+{ color(X, 1..n) } = 1 :- node(X).
+
+% Test: Check for violations - adjacent nodes cannot have the same color.
+% If there's an edge X->Y, and both have the same color C, this is a violation.
+:- edge(X,Y), color(X,C), color(Y,C).
+```
+
+**Explanation:**
+* `#const n = 3.`: Sets the default number of colors to 3. Use `--const n=k` on the command line to change it to $k$.
+* `{ color(X, 1..n) } = 1 :- node(X).`: For each node `X`, this choice rule ensures exactly one atom `color(X,C)` is chosen, where `C` is an integer from 1 to $n$. This assigns a unique color to each node.
+* `:- edge(X,Y), color(X,C), color(Y,C).`: This integrity constraint forbids any answer set where an edge exists from `X` to `Y`, and both `X` and `Y` are assigned the same color `C`.
+
+#### 6.1.3 Problem Solution
+
+Combine the instance file (`graph.lp`) and the encoding file (`color.lp`) and run `clingo`.
+
+```bash
+clingo graph.lp color.lp # Finds one 3-coloring if it exists
+clingo graph.lp color.lp 0 # Finds all 3-colorings
+clingo graph.lp color.lp -c n=4 # Tries to find a 4-coloring
+```
+
+**Example Output (for n=3):**
+```
+Answer: 1
+color(1,2) color(2,1) color(3,1) color(4,3) color(5,2) color(6,3)
+```
+This represents one valid 3-coloring.
+
+**Figure 6: A 3-Coloring for the Graph in Figure 5.**
+This figure shows the same graph structure as Figure 5, but now each node has a color assigned (represented visually, e.g., by node shading or labels). The coloring corresponds to the example output: Node 1 is color 2, Nodes 2 and 3 are color 1, Node 4 is color 3, Node 5 is color 2, and Node 6 is color 3. It visually confirms that no two nodes connected by an edge share the same color.
+
+*(To show only the `color/2` atoms, add `#show color/2.` to the encoding).*
+
+### 6.2 Traveling Salesperson
+
+**Problem:** Given a directed graph with costs on edges, find a Hamiltonian cycle (a round trip visiting each node exactly once) with the minimum possible total cost. This is an optimization problem (FPNP-complete).
+
+#### 6.2.1 Problem Instance
+
+We reuse the `node/1` and `edge/2` facts from the n-coloring example (Figure 5). We add edge costs using `cost/3` facts.
+
+**Figure 7: The Graph from Figure 5 along with Edge Costs.**
+This figure overlays edge costs onto the graph from Figure 5. For example, the edge 1->2 has cost 2, 1->3 has cost 3, 1->4 has cost 1, etc. Costs are shown for all 17 edges.
+
+```prolog
+% Nodes (same as before)
+node(1..6).
+% Edges (same as before)
+edge(1,(2;3;4)). edge(2,(4;5;6)). edge(3,(1;4;5)).
+edge(4,(1;2)). edge(5,(3;4;6)). edge(6,(2;3;5)).
+
+% Edge Costs
+cost(1,2,2). cost(1,3,3). cost(1,4,1).
+cost(2,4,2). cost(2,5,2). cost(2,6,4).
+cost(3,1,3). cost(3,4,2). cost(3,5,2).
+cost(4,1,1). cost(4,2,2).
+cost(5,3,2). cost(5,4,2). cost(5,6,1).
+cost(6,2,4). cost(6,3,3). cost(6,5,1).
+```
+
+#### 6.2.2 Problem Encoding
+
+We first define what a Hamiltonian cycle is, then add optimization.
+
+```prolog
+% Generate: Select edges to form potential cycles.
+% Each node must have exactly one outgoing edge selected for the cycle.
+{ cycle(X,Y) : edge(X,Y) } = 1 :- node(X).
+% Each node must have exactly one incoming edge selected for the cycle.
+{ cycle(X,Y) : edge(X,Y) } = 1 :- node(Y).
+
+% Define: Check if all nodes are reachable from an arbitrary start node (e.g., node 1).
+% reached(Y) is true if node Y is part of the cycle connected to node 1.
+reached(Y) :- cycle(1,Y). % Node after node 1 is reached.
+reached(Y) :- cycle(X,Y), reached(X). % Reachability is transitive along cycle edges.
+
+% Test: Ensure all nodes are reached (guarantees a single Hamiltonian cycle).
+% This works because answer sets require derivations; atoms in isolated sub-cycles
+% not containing node 1 would not be derivable as 'reached'.
+:- node(Y), not reached(Y).
+
+% Display: Show only the selected cycle edges.
+#show cycle/2.
+
+% Optimize: Minimize the total cost of the selected cycle edges.
+% Uses a minimize statement (equivalent to weak constraints).
+#minimize { Cost,X,Y : cycle(X,Y), cost(X,Y,Cost) }.
+```
+
+**Explanation:**
+* The `Generate` part uses cardinality constraints to ensure every node has exactly one incoming and one outgoing edge selected in the `cycle/2` predicate.
+* The `Define` and `Test` parts work together to ensure these selected edges form a single cycle that includes all nodes (a Hamiltonian cycle). The `reached/1` predicate, starting from node 1, uses recursion. ASP's stable model semantics ensure that only atoms derivable from non-circular paths are included. The integrity constraint `: - node(Y), not reached(Y).` eliminates answer sets where the selected edges form multiple disjoint cycles or do not cover all nodes.
+* The `Optimize` part uses `#minimize` to sum the costs of the edges selected in `cycle/2` and finds the answer set(s) where this sum is minimal. The `Cost,X,Y` part in the minimize statement ensures that each distinct edge `(X,Y)` with its specific cost `Cost` contributes to the sum (handling potential multiple edges between nodes if the instance allowed them, though not strictly necessary here).
+
+#### 6.2.3 Problem Solution
+
+Run `clingo` with the instance and encoding files. Since it's an optimization problem, `clingo` will find progressively better solutions.
+
+```bash
+clingo graph.lp costs.lp ham.lp min.lp # Combine all parts
+```
+
+**Example Output:**
+```
+Answer: 1
+cycle(1,3) cycle(2,4) cycle(3,5) cycle(4,1) cycle(5,6) cycle(6,2)
+Optimization: 13
+Answer: 2
+cycle(1,2) cycle(2,5) cycle(3,4) cycle(4,1) cycle(5,6) cycle(6,3)
+Optimization: 11
+OPTIMUM FOUND
+Models       : 2
+Optimum      : yes
+Optimization : 11
+...
+```
+* `clingo` finds an answer set (a Hamiltonian cycle) with cost 13.
+* It continues searching and finds a better one with cost 11.
+* It determines that 11 is the optimal cost.
+* The last answer set printed before "OPTIMUM FOUND" (`Answer: 2`) is an optimal solution.
+
+**Figure 8: A Minimum-cost Round Trip.**
+This figure shows the graph from Figure 7 with the edges corresponding to the optimal cycle highlighted. The cycle is 1 -> 2 -> 5 -> 6 -> 3 -> 4 -> 1. The sum of costs for these edges (2 + 2 + 1 + 3 + 2 + 1) is 11.
+
+**Finding All Optimal Solutions:**
+To compute *all* optimal solutions (if multiple exist with the same minimum cost), use `clingo --opt-mode=optN 0`. To suppress non-optimal solutions from the output, add `--quiet=1`.
+
+```bash
+clingo graph.lp costs.lp ham.lp min.lp --opt-mode=optN 0 --quiet=1
+```
+If only `Answer: 2` (cost 11) is printed, it's the unique optimal solution.
+
+### 6.3 Blocks World Planning
+
+**Problem:** Find a sequence of actions (plan) to transform an initial configuration of blocks on a table into a desired goal configuration. We want the *shortest* plan (minimum number of actions).
+
+**Challenge:** Finding the shortest plan often requires trying plans of length 1, then 2, then 3, etc., until a solution is found. `clingo` supports an *incremental* mode to handle this efficiently, avoiding redundant grounding and solving at each step.
+
+#### 6.3.1 Problem Instance
+
+Facts define blocks, the initial state, and the goal state. `on(Block, Location)` describes the state, where `Location` can be another block or `table`.
+
+**Instance (Sussman Anomaly):**
+```prolog
+% Blocks
+block(b0). block(b1). block(b2).
+
+% Initial State:
+%   b2
+%   b0  b1
+% --------- (table)
+init(on(b1,table)).
+init(on(b2,b0)).
+init(on(b0,table)).
+
+% Goal State:
+%   b2
+%   b1
+%   b0
+% --------- (table)
+goal(on(b1,b0)).
+goal(on(b2,b1)).
+goal(on(b0,table)).
+```
+*(Note: Compound terms like `on(b1, table)` are used as arguments).*
+
+#### 6.3.2 Problem Encoding (Incremental)
+
+This encoding uses `#program` directives for incremental solving. `clingo` automatically handles grounding step-by-step.
+
+```prolog
+% Include clingo's incremental mode definitions
+#include <incmode>.
+
+% --- Static Part (Time 0) ---
+#program base.
+% Define possible locations
+location(table).
+location(X) :- block(X). % Blocks are also locations.
+% Define initial state using 'holds(Fact, TimeStep)'
+holds(F,0) :- init(F). % F will be instantiated with terms like on(b1,table).
+
+% --- Dynamic Part (Transitions for step T > 0) ---
+#program step(t). % 't' is the time step parameter
+% Generate: Exactly one move action per time step.
+% move(BlockToMove, TargetLocation, TimeStep)
+{ move(X,Y,t) : block(X), location(Y), X != Y } = 1.
+
+% Test: Constraints on moves.
+% Cannot move X if something (A) is on top of it.
+:- move(X,Y,t), holds(on(A,X),t-1).
+% Cannot move X onto Y if Y is a block and already occupied by B (unless B is X itself - allows void moves technically, though less useful here).
+:- move(X,Y,t), holds(on(B,Y),t-1), B != X, Y != table.
+
+% Define: Effects of actions and inertia.
+% moved(X,t): True if block X was moved at step t.
+moved(X,t) :- move(X,Y,t).
+% Direct effect: If X is moved to Y at t, then on(X,Y) holds at t.
+holds(on(X,Y),t) :- move(X,Y,t).
+% Inertia: If on(X,Z) held at t-1 and X was not moved at t, it still holds at t.
+holds(on(X,Z),t) :- holds(on(X,Z),t-1), not moved(X,t).
+
+% --- Check Part (Applied at each step T >= 0) ---
+#program check(t). % 't' is the time step parameter
+% Test: Check if the goal is met at the current step 't'.
+% query(t) is a special atom provided by incmode, true only for the current step.
+:- query(t), goal(F), not holds(F,t). % If it's query time, goal F must hold.
+
+% Display: Only show the move actions in the final plan.
+% This #show is global, not tied to a specific program part.
+#show move/3.
+```
+
+**Explanation (`incmode`):**
+* `#include <incmode>.`: Enables incremental mode.
+* `#program base.`: Grounded once at the beginning (step 0).
+* `#program step(t).`: Grounded incrementally for steps $t=1, 2, 3, \dots$. Defines transitions from step $t-1$ to $t$.
+* `#program check(t).`: Grounded incrementally for steps $t=0, 1, 2, \dots$. Checks if the goal is met at step $t$.
+* `query(t)`: Atom automatically added by `clingo` in incremental mode. It is true only for the maximum step `t` currently being considered in a given iteration. The goal check `: - query(t), goal(F), not holds(F,t).` ensures that if `clingo` is checking for a solution at step `t`, the goal must be satisfied at that step.
+* **Requirement:** For correct incremental grounding, atoms defined in `step(t)` (like `holds(F,t)`) must be distinct from atoms defined in `base` or `step(t')` for $t' \neq t$. Using the time step `t` as an argument ensures this.
+
+#### 6.3.3 Problem Solution
+
+Run `clingo` with the instance and encoding. Add `0` to find all shortest plans (if multiple exist) or just run without it for one.
+
+```bash
+clingo world0.lp blocks.lp 0
+```
+
+**Output (Sussman Anomaly):**
+```
+Answer: 1
+move(b2,table,1) move(b1,b0,2) move(b2,b1,3)
+SATISFIABLE
+
+Models       : 1
+Calls        : 4
+Time         : ...
+CPU Time     : ...
+```
+* `clingo` incrementally grounds and solves for t=0, t=1, t=2, finding no solutions satisfying the goal check.
+* At t=3, it grounds `step(3)` and `check(3)`. The `query(3)` atom becomes true.
+* It finds an answer set satisfying the goal check at t=3.
+* The answer set contains the sequence of moves: `move(b2,table,1)`, `move(b1,b0,2)`, `move(b2,b1,3)`. This is the shortest plan (3 steps).
+* `Calls : 4` indicates it took 4 iterations (t=0, 1, 2, 3).
+
+---
+
+# Chapter 8: Errors, Warnings, and Infos
+
+This section explains the most frequent messages related to inappropriate inputs or command line options. All messages are printed to the standard error stream.
+
+## 8.1 Errors
+
+Most errors start with the prefix `*** ERROR: (System)` where System is `gringo`, `clingo`, or `clasp`. This prefix is denoted by *Error*. These errors are fatal and lead to immediate termination.
+
+### 8.1.1 Parsing Command Line Options
+
+Errors emitted during command line parsing:
+* `Error: In context '<Context>': unknown option: '<Option>'`
+    The option could not be recognized.
+* `Error: In context '<Context>': ambiguous option: '<Option>' could be: ...`
+    The option prefix matches multiple known options.
+* `Error: In context '<Context>': '<Arg>': invalid value for: '<Option>'`
+    The argument provided for the option is invalid.
+
+All three are followed by `*** Info: (System): Try '--help' for usage information`.
+
+### 8.1.2 Parsing and Checking Logic Programs
+
+Errors emitted during parsing and checking include location information:
+`File:Line:Column-Column: error: Message`
+
+**Logic Program Parsing:**
+* `Location: error: syntax error, unexpected Token`
+    Indicates a syntax error in the input. The parser will try to recover by ignoring input until the next period.
+
+**Safety Checking:**
+* `Location: error: unsafe variables in Rule`
+* `Location: note: 'Var' is unsafe`
+    Occurs if an input program is not safe. The affected rule and the unsafe variable(s) are reported. Check if the variable is properly bound by a positive literal in the body.
+
+**Script Execution and Parsing:**
+* `Location: error: failed to execute script: Information`
+    An error occurred in an embedded script (Lua/Python). The information usually contains a stack trace.
+
+**Defining Constants:**
+* `Location: error: cyclic constant definition: Constant`
+* `Location: error: redefinition of constant: Constant`
+    These errors occur with `#const` statements if there is a circular dependency or a constant is defined more than once.
+
+If any of these errors are reported, grounding terminates with: `Error: grounding stopped because of errors`.
+
+### 8.1.3 Parsing Logic Programs in smodels Format
+
+The following error is issued by `clasp`:
+* `Error: parse error in line Line: Message`
+    This means the input does not comply with the `smodels` numerical format. This should not occur if using `gringo` to ground programs.
+
+### 8.1.4 Multi-shot Solving
+
+The following error is issued by `clasp` if an atom is defined in the head of a rule in two different grounding steps:
+* `Error: redefinition of atom <Atom, Id>`
+    The `Atom` is the string representation of the redefined atom.
+
+## 8.2 Warnings
+
+Warnings do not terminate the application but hint at problems that should be investigated. They use a similar format to errors, but with the string `warning`.
+
+### 8.2.1 File Included Multiple Times
+
+* `Location: warning: already included file: Filename`
+    If a file is included multiple times, this warning is emitted. Only the first inclusion is considered.
+
+### 8.2.2 Unbounded CSP Variables
+
+* `warning: unbounded constraint variable: domain of Variable is set to Domain`
+    For CSP variables, a bound must be supplied. If not, this warning is issued, and an arbitrary domain is chosen for the variable.
+
+## 8.3 Infos
+
+Info messages indicate issues that have a well-defined semantics but might be unintended. They are preceded by the string `info`.
+
+### 8.3.1 Undefined Operations
+
+* `Location: info: term undefined: Term`
+    This may occur during an arithmetic evaluation or in an external function. It typically means a non-numeric term was used where a number was expected (e.g., division by zero, or `X/Y` where `Y` is a symbolic constant). Instantiations of rules containing undefined terms are discarded.
+
+### 8.3.2 Undefined Atoms
+
+* `Location: info: atom is undefined: Atom`
+    This message is emitted if an atom appears in the body of a rule but is never defined in the head of any rule or external statement. It often indicates a typo.
+
+### 8.3.3 Global Variables in Tuples of Aggregate Elements
+
+* `Location: info: global variable in tuple of aggregate element: Variable`
+    This message is emitted if a variable occurs globally (i.e., is not local to the aggregate's condition) in a tuple of an aggregate element. This often indicates a name clash between a global and a local variable.
+
+---
+
+## Chapter 11: Optimization and Preference Handling
+
+This chapter discusses methods for finding optimal answer sets based on quantitative (numeric) or qualitative (preference-based) criteria.
+
+### 11.1 Multi-objective Optimization with clasp and clingo
+
+Standard ASP optimization involves minimizing or maximizing sums of weights associated with elements in an answer set, potentially across multiple priority levels (lexicographic optimization).
+
+* **Language Constructs:** `#minimize` and `#maximize` statements (or the equivalent weak constraints $: \sim$) are used (see Section 3.1.13). Priority levels (`@p`) allow defining primary, secondary, etc., objectives.
+* **Solver Behavior:** `clasp`/`clingo` find answer sets that are optimal with respect to the specified criteria. By default, they find one optimal solution. Options like `--opt-mode=optN` allow finding all optimal solutions.
+* **Example:** The Traveling Salesperson problem (Section 6.2) uses `#minimize` to find the cycle with the lowest total edge cost. A multi-objective example was given in Section 3.1.13 (Hotel booking prioritizing low noise, then cost-per-star, then number of stars).
+
+*(This section refers to capabilities detailed earlier, particularly in Section 3.1.13 on Optimization and Section 7.3 on clasp options related to optimization modes).*
+
+### 11.2 Preference Handling with asprin
+
+`asprin` is a separate system (built on `clingo`) providing a general framework for handling complex qualitative and quantitative preferences, going beyond simple linear optimization. It allows defining custom preference types.
+
+#### 11.2.1 Computing optimal answer sets
+
+`asprin` works by adding preference specifications to a standard ASP program (the "base program"). These specifications are meta-statements (like `#show` or `#minimize`) that refer to the answer sets of the base program.
+
+**Base Program:** A regular `gringo`/`clingo` program (as in Section 3.1) but *without* weak constraints or `#minimize`/`#maximize` statements. Optimization is handled entirely by `asprin`'s preference specification.
+
+**Preference Specification:** Consists of:
+1.  **`#preference` statements:** Declare named preferences of a specific type, defining what is preferred based on the content of answer sets.
+2.  **`#optimize` statement:** Specifies which declared preference should be used to determine optimality.
+
+**Example:**
+Base Program (`base.lp`):
+```prolog
+dom(1..3).
+{ m(1..3) } = 1. % Choose exactly one m(X)
+a(1) :- m(1). a(1..2) :- m(2). a(3) :- m(3).
+b(1..3) :- m(1). b(1) :- m(2). b(2..3) :- m(3).
+#show m/1. #show a/1. #show b/1.
+```
+This base program has 3 answer sets:
+* X1: `{m(1), a(1), b(1), b(2), b(3)}`
+* X2: `{m(2), a(1), a(2), b(1)}`
+* X3: `{m(3), a(3), b(2), b(3)}`
+
+Preference Specification (`preference1.lp`): Minimize the set of `a/1` atoms (subset minimization).
+```prolog
+% Declare preference 'p1' of type 'subset' over atoms matching 'a(X)'.
+#preference(p1, subset) { a(X) : dom(X) }.
+% Optimize according to preference 'p1'.
+#optimize(p1).
+```
+
+**Running `asprin`:**
+`asprin` needs the base program and the preference specification. It also uses a library (`asprin_lib.lp`) defining common preference types (like `subset`), loaded automatically unless `--no-asprin-lib` is used.
+
+```bash
+asprin base.lp preference1.lp
+```
+
+**Output:**
+```
+asprin version 3.1.0
+Reading from base.lp ...
+Reading from preference1.lp ...
+Solving...
+Answer: 1
+m(2) a(1) a(2) b(1)  % This is X2
+Answer: 2
+m(1) a(1) b(1) b(2) b(3) % This is X1
+OPTIMUM FOUND
+Models       : 2+
+Optimum      : yes
+...
+```
+* `asprin` first finds an answer set (X2).
+* It then searches for one preferred over X2 according to `p1` (subset minimal for `a/1` atoms). X1 `{a(1)}` is preferred over X2 `{a(1), a(2)}`.
+* It searches for one preferred over X1. None exists (X3 `{a(3)}` is not comparable to X1 by subset).
+* X1 is reported as optimal. (The output shows the sequence of models found during the search process).
+
+If the preference was to minimize both `a/1` and `b/1` atoms via subset:
+```prolog
+#preference(p2, subset) { a(X) : dom(X); b(X) : dom(X) }.
+#optimize(p2).
+```
+Running `asprin base.lp preference2.lp` would yield X2 as optimal immediately, because `{a(1), a(2), b(1)}` is subset-minimal among X1, X2, X3 when considering both `a` and `b` atoms.
+
+#### 11.2.2 Computing multiple optimal answer sets
+
+Similar to `clingo`, adding a number `n` to the `asprin` command line computes up to `n` optimal answer sets (0 computes all).
+
+**Example (Continuing with `preference1.lp` - minimize `a/1` subset):**
+```bash
+asprin base.lp preference1.lp 0
+```
+**Output:**
+```
+...
+Answer: 1
+m(2) a(1) a(2) b(1)
+Answer: 2
+m(1) a(1) b(1) b(2) b(3) % X1 found, proven optimal
+OPTIMUM FOUND
+Answer: 3
+m(3) a(3) b(2) b(3)       % X3 found, also proven optimal
+OPTIMUM FOUND
+Models       : 3+
+Optimum      : yes
+...
+```
+* Finds X1 is optimal (as before).
+* Continues search for other optimal models (not strictly better than X1, but not worse either, and no other model is better than them).
+* Finds X3 (`{a(3)}`), which is also optimal because no other answer set has a strictly smaller subset of `a/1` atoms.
+* Reports both X1 and X3.
+
+**Effect of Non-Preference Atoms:** If the base program has choices unrelated to the preference statement (e.g., adding `{c(1)}.` to `base.lp`), `asprin` might find multiple optimal models that differ only in these non-preference atoms.
+* When searching for models not worse than a known optimum X, `asprin` first explores models that satisfy the preference elements identically to X.
+* Output like `OPTIMUM FOUND *` indicates an optimal model was found that is equivalent to a previously found optimum regarding the preference criteria but differs elsewhere.
+* Using `asprin --project` filters the output to show only unique optimal solutions based on the preference elements themselves, hiding variations in unrelated atoms.
+
+#### 11.2.3 Input language of asprin
+
+Extends the `gringo`/`clingo` language (Section 3.1) with specific preference constructs.
+
+* **Weighted Formula:** `t :: F`
+    * `t`: Term tuple (weight, distinguishing terms). Can be empty.
+    * `F`: A Boolean formula over atoms (using `&`, `|`, `not`, `-`) OR a *naming atom* `**s`.
+    * If `t` is empty, `::` can be omitted. If `F` is missing, it defaults to `#true`.
+    * Boolean formulas can use comma `,` for conjunction `&`.
+    * Naming atom `**s` refers to the preference relation defined by the preference statement named `s`.
+    * Examples: `42::a`, `cost(X,C)::edge(X,Y)`, `item(X), in_stock(X)`, `level(L)::**subpref(L)`.
+
+* **Set of Weighted Formulas:** `{ WF1; ...; WFm }`
+    * A set where each `WFi` is a weighted formula. Braces optional if $m=1$.
+
+* **Preference Element:** `Set_1 >> ... >> Set_m || ConditionFormula : Body`
+    * `Set_i`: A set of weighted formulas.
+    * `>>`: Defines a ranking between sets (Set 1 is most preferred, etc.). Optional if $m=1$.
+    * `ConditionFormula`: A weighted formula acting as a condition (often just a Boolean formula). Optional (`||` omitted).
+    * `Body`: A rule body (domain predicates or built-ins only) used to instantiate variables. Optional (`:` omitted).
+    * Instantiates variables in the Sets and ConditionFormula.
+    * Used to structure preferences, providing ranking and conditional application.
+    * Examples: `high_priority :: important_task : task(T)`, `{a; b} >> {c}`, `(1::go_out) >> (1::stay_home) || raining : weather(W)`.
+
+* **Preference Statement:** `#preference(Name, Type) { Elem_1; ...; Elem_n } : Body.`
+    * `Name`: Term identifying this preference relation (can contain variables instantiated by `Body`).
+    * `Type`: Term specifying the preference type (e.g., `subset`, `less(weight)`, `pareto`). Determines how the elements define the preference order.
+    * `Elem_i`: Preference elements.
+    * `Body`: Rule body (domain predicates or built-ins) to instantiate variables in `Name`, `Type`, and `Elem_i`. Optional.
+    * Safety: Variables in `Name`, `Type` must be bound by `Body`. Variables in `Elem_i` must be bound by their own body or the statement's `Body`. `asprin` may automatically add domain facts (e.g., `dom(a(X))` if `a(X)` appears) if bodies are omitted.
+
+* **Optimization Directive:** `#optimize(Name) : Body.`
+    * Specifies which preference `Name` (potentially instantiated by `Body`) should be used to find optimal answer sets.
+    * A valid specification must ground to exactly one optimize directive.
+
+**Example (Leisure Activities):**
+```prolog
+% Preference 1: Minimize cost (sum of weights)
+#preference(costs, less(weight)) {
+  C :: sauna : cost(sauna, C); % Weight C if sauna is chosen and cost is C
+  C :: dive  : cost(dive, C)  % Weight C if dive is chosen and cost is C
+}.
+
+% Preference 2: Maximize fun things (superset of desired atoms/negations)
+#preference(fun, superset) { sauna; dive; hike; not bunji }.
+
+% Preference 3: Conditional preference based on temperature
+#preference(temps, aso) { % 'aso' type handles conditional ranks
+  dive >> sauna || hot;     % Prefer dive over sauna if hot
+  sauna >> dive || not hot  % Prefer sauna over dive if not hot
+}.
+
+% Preference 4: Combine the above using Pareto preference
+% Pareto: Better if better in at least one and not worse in any.
+#preference(all, pareto) { **costs; **fun; **temps }. % Refer to other preferences by name
+
+% Optimize the combined preference
+#optimize(all).
+```
+
+#### 11.2.4 Preference relations and preference types
+
+* **Preference Relation:** A ground preference statement (e.g., `#preference(p1, subset){a(1); a(2)}`) defines a strict partial order ($\succ$) over the answer sets of the base program. $X \succ Y$ means answer set $X$ is strictly preferred to answer set $Y$ according to this specific preference statement.
+* **Optimal Answer Set:** An answer set $X$ is optimal w.r.t. $\succ$ if no other answer set $Y$ exists such that $Y \succ X$.
+* **Preference Type:** A function (implemented as a logic program, see 11.2.6) that takes the set of ground preference elements from a statement and defines the corresponding preference relation $\succ$.
+* **Domain of a Preference Type:** Specifies the allowed structure of ground preference elements for that type. E.g., `subset` requires elements to be Boolean formulas (no weights, no ranking `>>`, no conditions `||`). `less(weight)` requires elements like `w,t::F`.
+* **Admissibility:** A ground preference statement is admissible if all its elements belong to the domain of its specified type. `asprin` checks admissibility and errors if violated.
+
+#### 11.2.5 asprin library
+
+Provides implementations for common preference types.
+
+**Basic Types:**
+
+* **`subset` / `superset`:**
+    * Domain: Boolean formulas `F`.
+    * `subset`: $X \succ Y$ iff $\{F \mid X \models F\} \subset \{F \mid Y \models F\}$. (Minimize satisfied formulas).
+    * `superset`: $X \succ Y$ iff $\{F \mid X \models F\} \supset \{F \mid Y \models F\}$. (Maximize satisfied formulas).
+* **`less(cardinality)` / `more(cardinality)`:**
+    * Domain: Boolean formulas `F`.
+    * `less`: $X \succ Y$ iff $|\{F \mid X \models F\}| < |\{F \mid Y \models F\}|$. (Minimize count).
+    * `more`: $X \succ Y$ iff $|\{F \mid X \models F\}| > |\{F \mid Y \models F\}|$. (Maximize count).
+* **`less(weight)` / `more(weight)`:**
+    * Domain: Weighted formulas `w,t::F` (where `w` is integer, `t` tuple, `F` Boolean formula).
+    * `less`: $X \succ Y$ iff $\sum_{X \models F} w < \sum_{Y \models F} w$. (Minimize sum of weights). Corresponds to `#minimize`.
+    * `more`: $X \succ Y$ iff $\sum_{X \models F} w > \sum_{Y \models F} w$. (Maximize sum of weights). Corresponds to `#maximize`.
+* **`minmax` / `maxmin`:**
+    * Domain: Grouped weighted formulas `s,w,t::F` (where `s` is a group name).
+    * Calculates sum $v(s, Z) = \sum_{Z \models F \land \text{group is } s} w$ for each group $s$ and answer set $Z$.
+    * `minmax`: $X \succ Y$ iff $\max_s v(s, X) < \max_s v(s, Y)$. (Minimize the maximum group sum).
+    * `maxmin`: $X \succ Y$ iff $\min_s v(s, X) > \min_s v(s, Y)$. (Maximize the minimum group sum).
+* **`aso` (Answer Set Optimization):**
+    * Domain: Ranked conditional elements $F_1 >> \dots >> F_m || F_{cond}$ (where $F_i, F_{cond}$ are Boolean formulas).
+    * Defines preference based on "satisfaction degrees" of these ranked rules. See reference [13] for details.
+* **`poset` (Qualitative Preferences / Ordered Formulas):**
+    * Domain: Boolean formulas `F` and ordered pairs `F1 >> F2`.
+    * Interprets elements as defining a partially ordered set $(S, \succ_E)$ where $S$ is the set of formulas and $\succ_E$ is the transitive closure of `>>` relations.
+    * Defines $X \succ Y$ based on comparing satisfied/unsatisfied formulas according to the order $\succ_E$ (Brewka/Delgrande style). See reference [53].
+* **`cp` (CP-nets):**
+    * Domain: Conditional preference elements $L_1 >> L_2 || \{L_{cond}\}$ where $L_1, L_2$ are contrary literals and $L_{cond}$ are literals.
+    * Implements CP-net semantics based on improving flips under ceteris paribus. See reference [10]. Requires specific command-line options (`--meta`, potentially `--const-nb cp_tree`, `--approximation`) depending on the CP-net structure due to internal choices.
+
+**Composite Types:** Combine other preferences.
+
+* **`neg`:**
+    * Domain: Single naming atom `**s`.
+    * Reverses the preference: $X \succ_{neg} Y$ iff $Y \succ_s X$.
+* **`and`:**
+    * Domain: Set of naming atoms `**s_i`.
+    * $X \succ_{and} Y$ iff $X \succ_{s_i} Y$ for *all* $i$.
+* **`pareto`:**
+    * Domain: Set of naming atoms `**s_i`.
+    * $X \succ_{pareto} Y$ iff $X \succeq_{s_i} Y$ for all $i$ AND $X \succ_{s_j} Y$ for *at least one* $j$. (Better if better on some and not worse on any).
+* **`lexico`:**
+    * Domain: Weighted naming atoms `w_i :: **s_i`.
+    * Lexicographic combination based on weights `w_i` (higher weight is more important). $X \succ_{lexico} Y$ iff there exists some $j$ such that $X \succ_{s_j} Y$ and for all $k$ with $w_k > w_j$, $X \approx_{s_k} Y$ (where $\approx$ means equally preferred).
+
+#### 11.2.6 Implementing preference types
+
+Preference types are implemented using ASP programs ("preference programs"). `asprin` translates the user's preference specification and the two candidate answer sets being compared (X and Y) into facts, then runs the appropriate preference program to decide if X is better than Y.
+
+**Translation Process:**
+1.  A preference statement `#preference(s,t){...} : B.` is translated into facts like:
+    * `preference(s_ground, t_ground).` (Name and type)
+    * `preference(s_ground, (k,j,vars), rank, for(formula_term), weight_tuple) :- B_ground, ElemBody_ground.` (Details of each weighted formula within each element).
+2.  An optimization directive `#optimize(s) : B.` becomes `optimize(s_ground) :- B_ground.`
+3.  When comparing answer sets X and Y for preference `s`:
+    * For each Boolean formula `F` mentioned in statement `s`, if $X \models F$, the fact `holds(formula_term).` is added.
+    * If $Y \models F$, the fact `holds'(formula_term).` is added.
+
+**Preference Program Structure:**
+A program implementing type `t` typically resides within `#program preference(t). ... #end.` or similar block.
+* It must define the predicate `better(S)` such that `better(S)` is true in the answer set of the preference program if and only if $X \succ_S Y$ (where $X, Y$ are represented by `holds/1`, `holds'/1` facts, and $S$ is the name of the preference statement).
+* It may define related predicates like `bettereq(S)` ($X \succeq_S Y$), `eq(S)` ($X \approx_S Y$), etc., especially if used by composite types.
+* It should define `error(Msg)` if the preference statement `S` is inadmissible for type `t`. `error/1` rules can only depend on `preference/2`, `preference/5`, `optimize/1`, domain predicates, and built-ins.
+* A generic block `#program preference.` contains shared rules, like the optimization check: `: - not better(P), optimize(P).` which ensures the comparison yields "better" if `P` is the target of optimization.
+
+**Example (Subset Implementation):**
+```prolog
+#program preference(subset).
+% X is better than Y if there's an A false in X but true in Y,
+% and no B is true in X but false in Y.
+better(S) :- preference(S, subset),
+             holds'(A), not holds(A), preference(S,_,_,for(A),_),
+             not better_violating_element(S).
+better_violating_element(S) :- preference(S, subset),
+                               holds(B), not holds'(B), preference(S,_,_,for(B),_).
+
+% Define bettereq for composite types
+bettereq(S) :- preference(S, subset),
+               not better_violating_element(S).
+
+% Admissibility checks (simplified representation of rules from text)
+error("subset: no names") :- preference(S,subset), preference(S,_,_,name(_),_).
+error("subset: no weights") :- preference(S,subset), preference(S,_,_,_,W), W != ().
+error("subset: no >>") :- preference(S,subset), preference(S,_,R,_,_), R > 1.
+% ... other checks ...
+#end.
+
+% Shared optimization rule
+#program preference.
+:- not better(P), optimize(P).
+#end.
+```
+
+Running `asprin --no-asprin-lib my_subset.lp base.lp preference1.lp` would use this custom implementation instead of the library version.
