@@ -1,4 +1,4 @@
-# LLM + ASP
+# LLM-ASP-Programmer
 
 # Introduction
 LLM coupled with ASP for complex reasoning.
@@ -6,13 +6,13 @@ LLM coupled with ASP for complex reasoning.
 ## Repository Structure
 Below is an overview of the directory structure and the purpose of each folder and file:
 ```
-llm-asp/
+llm-asp-programmer/
 ├── envs/                      # Contains files for running domains.
 ├── resources/                 # Contains resource text files to be placed in the prompt.
 ├── datasets/                  # Folder which contains any data to be loaded.
 ├── keys.py                    # OpenAI API keys (should be filled in).
-├── run_instance.py            # Main file which runs the llm-asp pipeline.
-├── run_datasets.py            # Main file which runs the llm-asp pipeline with automatic evaluation on a dataset.
+├── run_instance.py            # Main file which runs the LLM-ASP-Programmer pipeline.
+├── run_datasets.py            # Main file which runs the LLM-ASP-Programmer pipeline with automatic evaluation on a dataset.
 ├── prompts.py                 # Prompts used in the pipeline.
 ├── prompts_post_output.py     # Prompts for formatting and automatic evaluation.
 ├── README.md                  # Description of the repository and instructions for usage.
@@ -52,7 +52,7 @@ PROJECT_ID = "your project ID"
 CORPUS_NAME = "your corpus name"
 ```
 
-# Running LLM-ASP
+# Running LLM-ASP-Programmer
 
 ## Running a problem
 Execute the run_instance script with the desired task name:
