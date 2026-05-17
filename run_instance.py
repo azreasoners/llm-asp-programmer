@@ -2,14 +2,12 @@ import pickle
 import os
 import openai
 import copy
-from utils import run_clingo_external, process_clingo_output, get_error_lines, write_intermediate, get_response_check, save_cache, parse_output_no_verifier
-from prompts import current_modules_prompt, candidate_feedback_prompt, verifier_feedback_prompt, resource_prompt
-
+from utils import *
+from prompts import *
+from prompts import writeActions_no_ver_full_prog as writeActions_no_ver
 
 from prompts_post_output import prompt_formatter, prompt_evaluator
 
-from prompts import debugger_prompt_resource_v2_2 as debugger_prompt
-from prompts import writeActions_no_ver_full_prog as writeActions_no_ver
 
 import argparse
 from argparse import RawTextHelpFormatter
@@ -27,8 +25,6 @@ parser.add_argument("--timeout", type=int, help = 'Maximum time allowed for a Cl
 parser.add_argument("--resource", type=str, help = 'A name of text file in the resources directory.', default = '')
 
 args = parser.parse_args()
-
-
 
 
 def processOutputs(stdout, stderr, exit_code, current_modules):

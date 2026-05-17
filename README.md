@@ -1,4 +1,4 @@
-# LLM-ASP-Programmer
+# LLM + ASP
 
 # Introduction
 LLM coupled with ASP for complex reasoning.
@@ -6,19 +6,21 @@ LLM coupled with ASP for complex reasoning.
 ## Repository Structure
 Below is an overview of the directory structure and the purpose of each folder and file:
 ```
-llm-asp-programmer/
+llm-asp/
 ├── envs/                      # Contains files for running domains.
 ├── resources/                 # Contains resource text files to be placed in the prompt.
 ├── datasets/                  # Folder which contains any data to be loaded.
 ├── keys.py                    # OpenAI API keys (should be filled in).
-├── run_instance.py            # Main file which runs the LLM-ASP-Programmer pipeline.
-├── run_datasets.py            # Main file which runs the LLM-ASP-Programmer pipeline with automatic evaluation on a dataset.
+├── run_instance.py            # Main file which runs the llm-asp pipeline.
+├── run_dataset.py             # Main file which runs the llm-asp pipeline with automatic evaluation on a dataset.
 ├── prompts.py                 # Prompts used in the pipeline.
 ├── prompts_post_output.py     # Prompts for formatting and automatic evaluation.
 ├── README.md                  # Description of the repository and instructions for usage.
 ├── utils.py                   # Useful functions used in the pipeline.
 ├── load_datasets.py           # File which stores the functions to load datasets.
 ├── generate_zebra.py          # File which generates size nxn Zebra puzzles.
+├── gemini_rag_utils.py        # File which configures RAG setup.
+
 ```
 
 ## Setup
@@ -52,12 +54,12 @@ PROJECT_ID = "your project ID"
 CORPUS_NAME = "your corpus name"
 ```
 
-# Running LLM-ASP-Programmer
+# Running LLM-ASP
 
 ## Running a problem
 Execute the run_instance script with the desired task name:
 ```bash
-python main_updates.py --task <TASK NAME>
+python run_instance.py --task <TASK NAME>
 ```
 <TASK_NAME> should be the name of a folder in `envs`, which contains a `problem.txt`, specifying the problem description.
 
@@ -70,14 +72,14 @@ python main_updates.py --task <TASK NAME>
 - **`--timeout <maximum length for Clingo>`**: The maximum allowed time (seconds) for a Clingo call (default: 80).
 
 ### Example:
-To run on a big bench extra hard instance of "shuffled objects" task with default parameters, use:
+To run on a sample river crossing task with default parameters, use:
 ```bash
 python run_instance.py --task river
 ```
 
-To run on a big bench extra hard instance of "shuffled objects", with `gpt-4o` as the underlying LLM, with at most 6 updates, use:
+To run on a big bench extra hard instance of "shuffled objects", with `o4-mini` as the underlying LLM, with at most 6 updates, use:
 ```bash
-python run_instance.py --task river --model gpt-4o --max_updates 6
+python run_instance.py --task river --model o4-mini --max_updates 6
 ```
 ---
 
@@ -87,7 +89,6 @@ The intermediate outputs and final results are stored in the `outputs_<model>` f
 ---
 
 ### Adding a problem
-
 To add a new problem, create a folder in the `envs` directory with the name of the task. In this new folder place the problem description in a single file named `problem.txt`.
 
 ### Running the New Problem
@@ -98,9 +99,9 @@ python run_instance.py --task blocksworld
 
 
 ## Running a dataset
-Execute the run_datasets script with the desired dataset:
+To run from {"zlb-xl", "zebra-generated-100", "sakana-100", "pb-mystery"}, execute the run_dataset script with the desired dataset:
 ```bash
-python run_datasets.py  --model <MODEL NAME> --dataset <DATASET NAME>
+python run_dataset.py  --model <MODEL NAME> --dataset <DATASET NAME>
 ```
 
 ### Additional Parameters
@@ -119,27 +120,27 @@ Current datasets supported (replace "<datasets name>" with any of the following)
 `"sakana-100"` (SudokuBench)
 `"pb-mystery"` (Mystery Blocksworld)
 
-(From NPHardEval)
-`"edp_p-20"`
-`"gcp_d-20"`
-`"gcp_hard-20"`
-`"ksp-20"`
-`"tsp_hard-20"`
-`"bsp_p-20"`
-`"spp_p-20"`
-`"tsp_d-20"`
-`"msp_hard-20"`
 
 ### Example:
 To run on 10 instances of the ZebraLogicBench dataset, task:
 ```bash
-python run_datasets.py --model gemini-2.5-pro-preview-03-25 --resource v4.txt --max_updates 10 --dataset zebra --limit 10
+python run_dataset.py --model gemini-2.5-pro --resource compact.txt --max_updates 10 --dataset zebra --limit 10
 ```
 
 ---
 
 ### Outputs
 The intermediate outputs and final results are stored in the `outputs_<model>/<dataset>` folder.
+
+---
+
+### Running NMR datasets:
+To run skeptical or credulous reasoning from MultiLogicNMR, or BoardgameQA, use the following:
+```bash
+python run_skeptical.py --model gemini-2.5-pro --resource compact.txt --max_updates 10 --limit 10
+python run_credulous.py --model gemini-2.5-pro --resource compact.txt --max_updates 10 --limit 10
+python run_boardgameQA.py --model gemini-2.5-pro --resource compact.txt --max_updates 10 --limit 10
+```
 
 ---
 
@@ -164,5 +165,5 @@ To add a new dataset, you must add a key which is the dataset's name (e.g., "blo
 ### Running the new dataset
 Using the name of the dataset you defined, for example, `blocksworld`, run the following command:
 ```bash
-python run_datasets.py --model gemini-2.5-pro-preview-03-25 --resource v4.txt --max_updates 10 --dataset blocksworld
+python run_dataset.py --model gemini-2.5-pro-preview-03-25 --resource compact.txt --max_updates 10 --dataset blocksworld
 ```

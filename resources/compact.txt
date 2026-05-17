@@ -1,0 +1,179 @@
+Answer Set Programming (ASP) is a declarative approach to problem-solving. You describe the problem using logical rules, and a solver, like `clingo`, finds the solutions (called "answer sets").
+
+### Basic Structure
+
+An ASP program typically separates the problem **instance** from its general **encoding**.
+
+* **Instance:** A set of simple facts that describes a specific scenario. For example, in a graph coloring problem, the facts would define the nodes and edges.
+* **Encoding:** A set of rules with variables that defines the logic and constraints of the problem for any instance.
+
+The common structure for an encoding is **Generate-Define-Test**:
+1.  **Generate:** Create a space of potential solution candidates. This is often done with a **choice rule**.
+2.  **Define:** Use rules to define auxiliary concepts based on the generated candidates.
+3.  **Test:** Use **integrity constraints** to eliminate candidates that violate the problem's rules.
+
+---
+
+### Core Language Concepts
+
+A `clingo` program consists of rules ending with a period (`.`).
+
+* **Facts:** Unconditional statements, like `node(1).` or `edge(1,2).`.
+* **Rules:** Have a head and a body, written as `head :- body.`. This means "if the body is true, the head must be true." The body is a comma-separated list of conditions.
+* **Integrity Constraints:** Rules with no head, written as `:- body.`. This forbids solutions where the body is true.
+
+**Variables and Terms**
+* **Variables** start with an uppercase letter (e.g., `X`, `Node`).
+* **Constants** (or symbols) start with a lowercase letter (e.g., `a`, `peg1`).
+* Rules must be **safe**: every variable in a rule must appear in a positive literal in the body, which ensures it gets a concrete value during solving.
+
+**Choice Rules and Aggregates**
+The core of the "Generate" step is the choice rule, which uses curly braces `{}`.
+
+* `{ color(X,C) : color(C) } = 1 :- node(X).`
+    This rule means: "For each node `X`, choose exactly one color `C` for it". The `{...}` part is a cardinality constraint.
+
+Aggregates like `#count`, `#sum`, `#min`, and `#max` can be used in the body to test properties of a solution.
+* `:- #count { student(S) : enrolled(S) } < 3.`
+    This constraint says a solution is invalid if fewer than 3 enrolled students exist.
+
+---
+
+### Operators, Pooling, and Intervals
+
+`clingo` supports built-in operators that are evaluated by the grounder.
+
+* **Operators:**
+    * `+` (Addition)
+    * `-` (Subtraction, Unary Minus)
+    * `*` (Multiplication)
+    * `/` (Integer Division)
+    * `\` (Modulo)
+    * `**` (Exponentiation)
+    * `|...|` (Absolute Value, e.g., `|X-Y|`)
+    * `&` (Bitwise AND)
+    * `?` (Bitwise OR)
+    * `^` (Bitwise XOR)
+    * `~` (Bitwise Complement)
+
+* **Comparison Operators:** Terms can be compared with `=`, `!=`, `<`, `>`, `<=`, and `>=`. These are used as conditions in the body of rules.
+    * `eligible(P) :- person(P), age(P,A), A >= 18.`
+
+* **Pooling:** The semicolon (`;`) is syntactic sugar for defining multiple facts or rules concisely.
+    * **Syntax:** `f(arg1, (X;Y), arg3)` is shorthand for `f(arg1, X, arg3)` and `f(arg1, Y, arg3)`. (note: the parentheses are needed).
+    * **Expansion:** Similar to intervals.
+        * **In Head:** Conjunctive expansion. `p(a;b).` expands to `p(a). p(b).` `p((a;b), (1;2)).` expands to `p(a,1). p(a,2). p(b,1). p(b,2).`
+        * **In Body (typically with `=`):** Disjunctive expansion. `p(X) :- X = (a;b).` is equivalent to rules generating `p(a).` and `p(b).`.
+
+* **Example:**
+```prolog
+peg(a;b;c). % Expands to peg(a). peg(b). peg(c).
+test((thing), (a;b;c;d)). % Expands to test(thing,a). test(thing,b). test(thing,c). test(thing,d).
+```
+
+* **Intervals:** A range of integers can be defined with `..`.
+    * `disk(1..4).` is shorthand for `disk(1). disk(2). disk(3). disk(4).`
+
+---
+
+### Optimization
+
+To find the best solution, you can use optimization statements.
+**Example:** Minimize the total cost of the selected cycle edges.
+* `#minimize { Cost,X,Y : cycle(X,Y), cost(X,Y,Cost) }.`
+    This statement tells the solver to find a solution where the sum of `Cost` for all selected `cycle(X,Y)` atoms is as small as possible.
+
+**Explanation:**
+* The `Generate` part uses cardinality constraints to ensure every node has exactly one incoming and one outgoing edge selected in the `cycle/2` predicate.
+* The `Define` and `Test` parts work together to ensure these selected edges form a single cycle that includes all nodes (a Hamiltonian cycle). The `reached/1` predicate, starting from node 1, uses recursion. ASP's stable model semantics ensure that only atoms derivable from non-circular paths are included. The integrity constraint `: - node(Y), not reached(Y).` eliminates answer sets where the selected edges form multiple disjoint cycles or do not cover all nodes.
+* The `Optimize` part uses `#minimize` to sum the costs of the edges selected in `cycle/2` and finds the answer set(s) where this sum is minimal. The `Cost,X,Y` part in the minimize statement ensures that each distinct edge `(X,Y)` with its specific cost `Cost` contributes to the sum (handling potential multiple edges between nodes if the instance allowed them, though not strictly necessary here).
+
+* `#maximize` works similarly to find the largest possible value.
+
+### **Blocks World Planning**
+
+**Problem:** Find a sequence of actions (plan) to transform an initial configuration of blocks on a table into a desired goal configuration. We want the *shortest* plan (minimum number of actions).
+
+**Challenge:** Finding the shortest plan often requires trying plans of length 1, then 2, then 3, etc., until a solution is found. clingo supports an *incremental* mode to handle this efficiently, avoiding redundant grounding and solving at each step.
+
+#### **6.3.1 Problem Instance**
+
+Facts define blocks, the initial state, and the goal state. on(Block, Location) describes the state, where Location can be another block or table.
+
+**Instance:**
+
+% Blocks  
+block(b0). block(b1). block(b2).
+
+% Initial State:  
+%   b2  
+%   b0  b1  
+% \--------- (table)  
+init(on(b1,table)).  
+init(on(b2,b0)).  
+init(on(b0,table)).
+
+% Goal State:  
+%   b2  
+%   b1  
+%   b0  
+% \--------- (table)  
+goal(on(b1,b0)).  
+goal(on(b2,b1)).  
+goal(on(b0,table)).
+
+*(Note: Compound terms like on(b1, table) are used as arguments).*
+
+#### **6.3.2 Problem Encoding (Incremental)**
+
+This encoding uses \#program directives for incremental solving. clingo automatically handles grounding step-by-step.
+
+% Include clingo's incremental mode definitions  
+\#include \<incmode\>.
+
+% \--- Static Part (Time 0\) \---  
+\#program base.  
+% Define possible locations  
+location(table).  
+location(X) :- block(X). % Blocks are also locations.  
+% Define initial state using 'holds(Fact, TimeStep)'  
+holds(F,0) :- init(F). % F will be instantiated with terms like on(b1,table).
+
+% \--- Dynamic Part (Transitions for step T \> 0\) \---  
+\#program step(t). % 't' is the time step parameter  
+% Generate: Exactly one move action per time step.  
+% move(BlockToMove, TargetLocation, TimeStep)  
+{ move(X,Y,t) : block(X), location(Y), X \!= Y } \= 1\.
+
+% Test: Constraints on moves.  
+% Cannot move X if something (A) is on top of it.  
+:- move(X,Y,t), holds(on(A,X),t-1).  
+% Cannot move X onto Y if Y is a block and already occupied by B (unless B is X itself \- allows void moves technically, though less useful here).  
+:- move(X,Y,t), holds(on(B,Y),t-1), B \!= X, Y \!= table.
+
+% Define: Effects of actions and inertia.  
+% moved(X,t): True if block X was moved at step t.  
+moved(X,t) :- move(X,Y,t).  
+% Direct effect: If X is moved to Y at t, then on(X,Y) holds at t.  
+holds(on(X,Y),t) :- move(X,Y,t).  
+% Inertia: If on(X,Z) held at t-1 and X was not moved at t, it still holds at t.  
+holds(on(X,Z),t) :- holds(on(X,Z),t-1), not moved(X,t).
+
+% \--- Check Part (Applied at each step T \>= 0\) \---  
+\#program check(t). % 't' is the time step parameter  
+% Test: Check if the goal is met at the current step 't'.  
+% query(t) is a special atom provided by incmode, true only for the current step.  
+:- query(t), goal(F), not holds(F,t). % If it's query time, goal F must hold.
+
+% Display: Only show the move actions in the final plan.  
+% This \#show is global, not tied to a specific program part.  
+\#show move/3.
+
+**Explanation (incmode):**
+
+* \#include \<incmode\>.: Enables incremental mode.  
+* \#program base.: Grounded once at the beginning (step 0).  
+* \#program step(t).: Grounded incrementally for steps t=1,2,3,dots. Defines transitions from step t−1 to t.  
+* \#program check(t).: Grounded incrementally for steps t=0,1,2,dots. Checks if the goal is met at step t.  
+* query(t): Atom automatically added by clingo in incremental mode. It is true only for the maximum step t currently being considered in a given iteration. The goal check : \- query(t), goal(F), not holds(F,t). ensures that if clingo is checking for a solution at step t, the goal must be satisfied at that step.  
+* **Requirement:** For correct incremental grounding, atoms defined in step(t) (like holds(F,t)) must be distinct from atoms defined in base or step(t') for t′neqt. Using the time step t as an argument ensures this.

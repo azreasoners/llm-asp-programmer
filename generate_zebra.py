@@ -7,9 +7,9 @@ import json
 
 
 # =============================================================================
-# Set number of puzzles to generate, and the number of houses. Configured up to 16 houses, to add more requires adding more categories below.
+# Set number of puzzles to generate, and the number of houses
 # =============================================================================
-n_of_puzzles = 10
+num_puzzles = 10
 n_of_houses = 4
 
 to_nl = {'House Colors' : ['the person in the ', ' house'],
@@ -501,7 +501,7 @@ min_to_keep_per_size = {3: 1,
 
 data_list = []
 
-for i in range(n_of_puzzles):
+for i in range(num_puzzles):
 
     shuffleZebraDict(zebra_puzzle_data, idx2cat)
     program_basic = '''% --- Configuration ---
@@ -551,7 +551,7 @@ for i in range(n_of_puzzles):
     
     
     clingo_calls = 0
-    max_tries = 6 # maximum number of attempts at randomly removing half of the current number of rules to cut before halfing it again. 
+    max_tries = 6
     tries = 0
     generated_rules, rule_types = generate_asp_clues_from_assignment(category_assignments)
     rule_type_counts = {rule_type_name: rule_types.count(rule_type_name) for rule_type_name in rule_type_names}
@@ -761,7 +761,7 @@ Find an assignment which satisfies all constraints in the problem. After finding
 
 
 
-with open(f"zebra-generated-{n_of_houses}-{n_of_puzzles}.json", "w", encoding='utf-8') as file:
+with open("zebra-generated-16-50_3.json", "w", encoding='utf-8') as file:
     json.dump(data_list, file)
 
 

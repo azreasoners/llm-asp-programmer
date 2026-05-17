@@ -1,17 +1,14 @@
 import pickle
 import os
 import copy
-from utils import run_clingo_external, process_clingo_output, get_error_lines, write_intermediate, get_response_check, save_cache, parse_output_no_verifier, write_stats, write_stats_openai, write_stats_deepseek, write_stats_deepseek_chat
-from prompts import current_modules_prompt, candidate_feedback_prompt, verifier_feedback_prompt, resource_prompt
 
+from utils import *
+from prompts import *
 
 from prompts_post_output import prompt_formatter, prompt_evaluator
-from prompts import debugger_prompt_resource_v2_2 as debugger_prompt
-from prompts import writeActions_no_ver_full_prog as writeActions_no_ver
 
 import argparse
 from argparse import RawTextHelpFormatter
-
 
 def processOutputs(stdout, stderr, exit_code, current_modules):
     error_lines_string = ''

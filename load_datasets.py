@@ -235,7 +235,42 @@ def getSakana100(dataset_name):
 
 loaders_dict['sakana-100'] = getSakana100
 
+# =============================================================================
+# multiNMR Loaders
+# =============================================================================
 
+def getMultiNMRSkeptical(dataset_name):
+    from load_multiNMR import getMultiLogicNMR
+    return getMultiLogicNMR('skeptical')
+
+def getMultiNMRCredulous(dataset_name):
+    from load_multiNMR import getMultiLogicNMR
+    return getMultiLogicNMR('credulous')
+
+loaders_dict['multiNMR-skeptical'] = getMultiNMRSkeptical
+loaders_dict['multiNMR-credulous'] = getMultiNMRCredulous
+
+# =============================================================================
+# BoardgameQA Loader
+# =============================================================================
+
+def getBoardgameQA(dataset_name):
+    from datasets import load_dataset
+    # Load BoardgameQA dataset from Hugging Face
+    ds = load_dataset("tasksource/Boardgame-QA")
+    puzzles = ds['test']
+    
+    puzzle_dict = {}
+    for idx, puzzle in enumerate(puzzles):
+        prob_desc = f"Theory:\n{puzzle.get('theory', puzzle.get('input', ''))}\n\nQuestion:\n{puzzle.get('question', '')}"
+        solution = puzzle.get('label', puzzle.get('answer', ''))
+        
+        p_id = f"boardgameQA_{idx}"
+        puzzle_dict[p_id] = {'problem': prob_desc, 'solution': solution}
+        
+    return puzzle_dict
+
+loaders_dict['boardgameQA'] = getBoardgameQA
 
 # =============================================================================
 # meta prompts

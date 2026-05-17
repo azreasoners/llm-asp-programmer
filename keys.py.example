@@ -1,0 +1,16 @@
+# OpenAI Configuration
+API_KEY = 'your_openai_api_key_here'
+ORG_KEY = 'your_openai_org_key_here_or_leave_blank'
+
+# Google Gemini Configuration
+API_KEY_GEM = 'your_google_gemini_api_key_here'
+
+# DeepSeek Configuration
+API_KEY_DEEPSEEK = 'your_deepseek_api_key_here'
+
+# OpenAI RAG / Vector Store ID
+VS_ID = 'your_openai_vector_store_id_here'
+
+# Gemini RAG / Corpus Configuration
+PROJECT_ID = 'your_google_cloud_project_id_here'
+CORPUS_NAME = 'your_gemini_corpus_name_here'

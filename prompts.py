@@ -1,69 +1,6 @@
 checklist = ''
 
 
-debugger_prompt = '''You are tasked with constructing an ASP program to solve the following problem:
-<PROBLEM>
-
-The ASP program should be made of ASP modules, which each make up a necessary part of the program to represent the problem.
-
-<CHECKLIST>
-
-<TEST_CASE><CURRENT MODULES><CANDIDATE_FEEDBACK><VERIFIER_FEEDBACK>
-
-You have 3 available actions. If you run into an issue that does not have a clear, pinpointed, and actionable solution, then take the test action (option 2). Do not update to try to see if something works, that is what a test case is for.
-(1) Update. This should be done either to:
-	(a) write an initial ASP program (still considered an update).
-	(b) update the program based on the Clingo output and verifiers and/or test case outputs which help to debug the current output.
-(2) Test. Use this option when you suspect deeper issues within the ASP program that a targeted test case could help uncover. This might involve creating a minimal or simple example with a known expected output to compare against Clingo's results, or designing a test case that isolates parts of the problem to help pinpoint where an error originates.
-(3) Pass. This should be done when the Clingo output is correct. There should be no ambiguity and consensus on the proposed solution being correct. ONLY use when absolutely sure the output is correct.
-
-
-If choosing action (1) Update, format your output exactly like the following:
-
-```
-ACTION: UPDATE
-
-% MODULES START
-% module <name of first module>
-<ASP code for this module>
-% module <name of first module> END
-
-% module <name of second module>
-<ASP code for this module>
-% module <name of second module> END
-...
-% MODULES END
-```
-
-For action (2) test case debug, write a brief but sufficient description of the problem (it should be solvable with the given information), make sure that the description states that the solution should be generalizable (i.e., don't take shortcuts that will only work for the test problem), and write a test program, formatting your output exactly like the following:
-
-```
-ACTION: TEST
-
-% PROBLEM DESCRIPTION START
-...
-% PROBLEM DESCRIPTION END
-
-% MODULES START
-% module <name of first module>
-<ASP code for this module>
-% module <name of first module> END
-
-% module <name of second module>
-<ASP code for this module>
-% module <name of second module> END
-...
-% MODULES END
-```
-
-For action (3) Pass, format your output exactly like the following (only write the action, since nothing else is to be done):
-
-```
-ACTION: PASS
-```'''.replace('<CHECKLIST>', checklist)
-
-
-
 debugger_prompt_resource_v2_2 = '''<RESOURCE_PROMPT>
 
 <instructions>
@@ -89,6 +26,21 @@ candidate_feedback_prompt = '''<candidate-answer-set>
 Here is the candidate answer set to solve the problem, from running the ASP program:
 <CURRENT OUTPUT>
 </candidate-answer-set>'''
+
+
+candidate_feedback_prompt_both = '''<candidate-answer-sets>
+<run-1>
+Here is the candidate answer set when running from running the ASP program  with {:- test_query}:
+<CURRENT OUTPUT1>
+</run-1>
+
+<run-2>
+Here is the candidate answer set when running from running the ASP program  with {:- -test_query}:
+<CURRENT OUTPUT2>
+</run-2>
+</candidate-answer-sets>'''
+
+
 
 verifier_feedback_prompt = '''<verifier-feedback>
 Here is feedback from verifiers, which analyzed the candidate answer set.
@@ -228,26 +180,8 @@ def writeActions(a_bool):
     
     return full_str
 
+
 def writeActions_no_ver(a_bool):
-    num_actions = sum(a_bool)
-    num_actions_string = 'You are tasked with doing the an operation from the following.'.replace('<NUM ACTIONS>',str(num_actions))
-    pre, instr = [], []
-    
-    for a_idx,a in enumerate(a_bool):
-        if not a:
-            continue
-        pre.append(actions_desc_no_ver[a_idx][0])
-        instr.append(actions_desc_no_ver[a_idx][1])
-    
-    pre_str = '\n'.join(pre)
-    instr_str = '\n'.join(instr)
-    
-    full_str = num_actions_string + '\n' + pre_str + '\n\n' + instr_str + '\n\nDo not write anything outside of the three backticks.'
-    
-    return full_str
-
-
-def writeActions_no_ver_full_prog(a_bool):
     num_actions = sum(a_bool)
     num_actions_string = 'You are tasked with doing the an operation from the following.'.replace('<NUM ACTIONS>',str(num_actions))
     pre, instr = [], []

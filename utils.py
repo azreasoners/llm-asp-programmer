@@ -12,19 +12,18 @@ from keys import API_KEY,ORG_KEY
 openai.api_key= API_KEY
 openai.organization = ORG_KEY
 
-from openai import OpenAI
-client = OpenAI(api_key = API_KEY, organization = ORG_KEY)
 
+from openai import OpenAI
 from google import genai
 from keys import API_KEY_GEM, API_KEY_DEEPSEEK
 
-client_gem = genai.Client(api_key=API_KEY_GEM)
-client_deepseek = OpenAI(api_key=API_KEY_DEEPSEEK, base_url="https://api.deepseek.com")
 
-
-#from utils import run_clingo_external, process_clingo_output, get_error_lines, write_intermediate, get_response_check, save_cache, parse_output_no_verifier, write_stats, write_stats_openai, write_stats_deepseek, write_stats_deepseek_chat
-
-
+if API_KEY:
+    client = OpenAI(api_key = API_KEY, organization = ORG_KEY)
+if API_KEY_GEM:
+    client_gem = genai.Client(api_key=API_KEY_GEM)
+if  API_KEY_DEEPSEEK:
+    client_deepseek = OpenAI(api_key=API_KEY_DEEPSEEK, base_url="https://api.deepseek.com")
 
 
 def run_clingo_external(program_str, num_models=1, timeout = 60):
@@ -76,6 +75,102 @@ def process_clingo_output(stdout, stderr):
     else:
         
         return stdout[start_idx:end_idx], stderr, 0
+
+def check_entailment(program_str, query, num_models=1, mapping = ['I', 'T', 'F', 'M'], timeout=60, strong_negation = False):
+    """
+    Check entailment with inconsistency detection.
+
+    Returns:
+        "T": Entailed (P |= Q)
+        "F": Refuted (P |= -Q)
+        "M": Unknown (Neither)
+        "I": Inconsistent (P itself has no models)
+    """
+    
+    def run_clingo_instance(prog_input):
+        try:
+            result = subprocess.run(
+                ["clingo", "-", str(num_models), '--opt-mode=optN', '-t 8'],
+                input=prog_input.encode("utf-8"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout
+            )
+            return "UNSATISFIABLE" in result.stdout.decode("utf-8"), result.stdout.decode("utf-8"), result.stderr.decode("unicode_escape"), result.returncode
+        except subprocess.TimeoutExpired:
+            return f"TIMEOUT: exceeded {timeout} seconds.", '', '', ''
+
+    # 1. Check if P |= Q (is P U {:- Q} UNSAT?)
+    # If UNSAT here, it could be "T" OR "Inconsistent"
+    program_T = f"{program_str}\n:- {query}."
+    is_unsat_T, stdout1, stderr1, return_code1 = run_clingo_instance(program_T)
+
+    # 2. Check if P |= -Q (is P U {:- not Q} UNSAT?)
+    # If UNSAT here, it could be "F" OR "Inconsistent"
+    if not strong_negation:
+        program_F = f"{program_str}\n:- not {query}."
+    else:
+        program_F = f"{program_str}\n:- -{query}."
+    is_unsat_F, stdout2, stderr2, return_code2 = run_clingo_instance(program_F)
+    both_outputs = [[stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2]]
+    # Logic Table
+    if is_unsat_T and is_unsat_F:
+        return mapping[0], [stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2]  # Program P is inconsistent (has 0 models)
+    elif is_unsat_T:
+        return mapping[1], [stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2]
+    elif is_unsat_F:
+        return mapping[2], [stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2] 
+    else:
+        return mapping[3], [stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2]
+
+
+def check_entailment_credulous(program_str, query, num_models=1, timeout=60 ):
+    """
+    Check entailment with inconsistency detection.
+
+    Returns:
+        "T": Entailed (P |= Q)
+        "F": Refuted (P |= -Q)
+        "M": Unknown (Neither)
+        "I": Inconsistent (P itself has no models)
+    """
+    
+    def run_clingo_instance(prog_input):
+        try:
+            result = subprocess.run(
+                ["clingo", "-", str(num_models), '--opt-mode=optN', '-t 8'],
+                input=prog_input.encode("utf-8"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout
+            )
+            return "UNSATISFIABLE" in result.stdout.decode("utf-8"), result.stdout.decode("utf-8"), result.stderr.decode("unicode_escape"), result.returncode
+        except subprocess.TimeoutExpired:
+            return f"TIMEOUT: exceeded {timeout} seconds.", '', '', ''
+
+    # 1. Check if P |= Q (is P U {:- Q} UNSAT?)
+    # If UNSAT here, it could be "T" OR "Inconsistent"
+    program_T = f"{program_str}\n:- not {query}."
+    is_unsat_T, stdout1, stderr1, return_code1 = run_clingo_instance(program_T)
+    
+    
+    
+    # 2. Check if P |= -Q (is P U {:- not Q} UNSAT?)
+    # If UNSAT here, it could be "F" OR "Inconsistent"
+    program_F = f"{program_str}\n:- not -{query}."
+    is_unsat_F, stdout2, stderr2, return_code2 = run_clingo_instance(program_F)
+    both_outputs = [[stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2]]
+    # Logic Table
+
+    if is_unsat_T and is_unsat_F:
+        return "M", [stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2]  # Program P is inconsistent (has 0 models)
+    elif not is_unsat_T:
+        return "T", [stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2]
+    elif not is_unsat_F:
+        return "F", [stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2] 
+    else:
+        return "I", [stdout1, stdout2], [stderr1, stderr2], [return_code1, return_code2]
+
 
 def get_response(prompt, prompt_cache, prompt_cache_RAG, model, redo=False, temp=0.,max_tokens=3500, stop = None, num_verifier = None, RAG = False):
     
@@ -497,6 +592,27 @@ def write_stats_deepseek(token_usage, correct, output_dir):
         json.dump(stats, f)
 
 def write_stats_deepseek_chat(token_usage, correct, output_dir):
+    token_types = ['main', 'verifier', 'formatter'] if token_usage['evaluator'] else ['main', 'verifier', 'formatter']
+    tokens_by_type = {tok_type: {tok_type: 0 for tok_type in ['thought_tokens', 'total_tokens', 'prompt_tokens']} for tok_type in token_types}
+    
+    for token_type in token_types:
+        for token_stats in token_usage[token_type]:
+            output_toks = token_stats.completion_tokens
+            prompt_toks = token_stats.prompt_tokens
+            
+            tokens_by_type[token_type]['total_tokens']+= output_toks + prompt_toks
+            tokens_by_type[token_type]['prompt_tokens']+=prompt_toks
+        
+    
+    if correct != 'unknown':
+        stats = {'revisions': len(token_usage['main'])-1, 'token_usage': tokens_by_type, 'correct': correct }
+    else:
+        stats = {'revisions': len(token_usage['main'])-1, 'token_usage': tokens_by_type}
+    
+    with open(os.path.join(output_dir,'stats.txt'), 'w') as f:
+        json.dump(stats, f)
+
+def write_stats_deepseek_v3(token_usage, correct, output_dir):
     token_types = ['main', 'verifier', 'formatter'] if token_usage['evaluator'] else ['main', 'verifier', 'formatter']
     tokens_by_type = {tok_type: {tok_type: 0 for tok_type in ['thought_tokens', 'total_tokens', 'prompt_tokens']} for tok_type in token_types}
     
