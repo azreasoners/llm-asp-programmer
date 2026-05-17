@@ -2,11 +2,11 @@ import pickle
 import os
 import openai
 import copy
-from utils import *
-from prompts import *
-from prompts import writeActions_no_ver_full_prog as writeActions_no_ver
+from core.utils import *
+from core.prompts import *
+from core.prompts import writeActions_no_ver_full_prog as writeActions_no_ver
 
-from prompts_post_output import prompt_formatter, prompt_evaluator
+from core.prompts_post_output import prompt_formatter, prompt_evaluator
 
 import argparse
 from argparse import RawTextHelpFormatter
@@ -232,7 +232,7 @@ current_output = None
 all_verifier_feedback = None
 
 
-from load_datasets import loaders_dict, meta_prompts_dict, formatter_instructions_dict
+from core.load_datasets import loaders_dict, meta_prompts_dict, formatter_instructions_dict
 
 
 # =============================================================================

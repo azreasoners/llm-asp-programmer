@@ -240,11 +240,11 @@ loaders_dict['sakana-100'] = getSakana100
 # =============================================================================
 
 def getMultiNMRSkeptical(dataset_name):
-    from load_multiNMR import getMultiLogicNMR
+    from core.load_multiNMR import getMultiLogicNMR
     return getMultiLogicNMR('skeptical')
 
 def getMultiNMRCredulous(dataset_name):
-    from load_multiNMR import getMultiLogicNMR
+    from core.load_multiNMR import getMultiLogicNMR
     return getMultiLogicNMR('credulous')
 
 loaders_dict['multiNMR-skeptical'] = getMultiNMRSkeptical

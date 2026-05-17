@@ -14,15 +14,19 @@ openai.organization = ORG_KEY
 
 
 from openai import OpenAI
-from google import genai
 from keys import API_KEY_GEM, API_KEY_DEEPSEEK
 
+client_gem = None
+if API_KEY_GEM:
+    try:
+        from google import genai
+        client_gem = genai.Client(api_key=API_KEY_GEM)
+    except ImportError:
+        print("⚠️ Warning: 'google-genai' library is not installed. Gemini models will be disabled.")
 
 if API_KEY:
     client = OpenAI(api_key = API_KEY, organization = ORG_KEY)
-if API_KEY_GEM:
-    client_gem = genai.Client(api_key=API_KEY_GEM)
-if  API_KEY_DEEPSEEK:
+if API_KEY_DEEPSEEK:
     client_deepseek = OpenAI(api_key=API_KEY_DEEPSEEK, base_url="https://api.deepseek.com")
 
 
@@ -293,11 +297,12 @@ def get_response_RAG(prompt, model = 'gpt-4'):
     return response
 
 
-from vertexai.generative_models import GenerativeModel, Tool
-from gemini_rag_utils import rag_retrieval_tool
-
 def get_response_gemini_RAG(prompt, model):
-    
+    try:
+        from vertexai.generative_models import GenerativeModel, Tool
+        from core.gemini_rag_utils import rag_retrieval_tool
+    except ImportError:
+        raise ImportError("The 'vertexai' library is not installed, which is required for Gemini RAG.")
     
     rag_model = GenerativeModel(
         model_name=model, tools=[rag_retrieval_tool]

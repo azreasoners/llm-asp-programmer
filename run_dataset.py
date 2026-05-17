@@ -2,10 +2,10 @@ import pickle
 import os
 import copy
 
-from utils import *
-from prompts import *
+from core.utils import *
+from core.prompts import *
 
-from prompts_post_output import prompt_formatter, prompt_evaluator
+from core.prompts_post_output import prompt_formatter, prompt_evaluator
 
 import argparse
 from argparse import RawTextHelpFormatter
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     current_output = None
     all_verifier_feedback = None
     
-    from load_datasets import loaders_dict, meta_prompts_dict, formatter_instructions_dict
+    from core.load_datasets import loaders_dict, meta_prompts_dict, formatter_instructions_dict
     
     # =============================================================================
     # read dataset

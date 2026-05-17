@@ -10,17 +10,23 @@ llm-asp/
 ├── envs/                      # Contains files for running domains.
 ├── resources/                 # Contains resource text files to be placed in the prompt.
 ├── datasets/                  # Folder which contains any data to be loaded.
-├── keys.py                    # OpenAI API keys (should be filled in).
+├── core/                      # Contains the core python modules for prompts, loading, and utilities.
+│   ├── __init__.py            # Package initialization.
+│   ├── prompts.py             # Prompts used in the pipeline.
+│   ├── prompts_post_output.py # Prompts for formatting and automatic evaluation.
+│   ├── utils.py               # Useful functions used in the pipeline.
+│   ├── load_datasets.py       # File which stores the functions to load datasets.
+│   ├── load_multiNMR.py       # Loader for MultiNMR reasoning datasets.
+│   ├── generate_zebra.py      # File which generates size nxn Zebra puzzles.
+│   └── gemini_rag_utils.py    # File which configures Gemini RAG setup.
+├── keys.py                    # API keys configuration file (template provided in keys.py.example).
+├── keys.py.example            # Template for configuring API keys securely.
 ├── run_instance.py            # Main file which runs the llm-asp pipeline.
 ├── run_dataset.py             # Main file which runs the llm-asp pipeline with automatic evaluation on a dataset.
-├── prompts.py                 # Prompts used in the pipeline.
-├── prompts_post_output.py     # Prompts for formatting and automatic evaluation.
-├── README.md                  # Description of the repository and instructions for usage.
-├── utils.py                   # Useful functions used in the pipeline.
-├── load_datasets.py           # File which stores the functions to load datasets.
-├── generate_zebra.py          # File which generates size nxn Zebra puzzles.
-├── gemini_rag_utils.py        # File which configures RAG setup.
-
+├── run_skeptical.py           # Skeptical reasoning evaluator for MultiNMR.
+├── run_credulous.py           # Credulous reasoning evaluator for MultiNMR.
+├── run_boardgameQA.py         # Evaluator for BoardgameQA dataset.
+└── README.md                  # Description of the repository and instructions for usage.
 ```
 
 ## Setup

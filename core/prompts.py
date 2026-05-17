@@ -200,6 +200,9 @@ def writeActions_no_ver(a_bool):
     return full_str
 
 
+writeActions_no_ver_full_prog = writeActions_no_ver
+
+
 def writeActions_ver(a_bool):
     num_actions = sum(a_bool)
     num_actions_string = 'Summarize your findings in a single block, encapsulated by three backticks (```), including anything that seems wrong. Specify the module(s) you are commenting on. This feedback will potentially be used to adjust anything in the ASP program. If the proposed solution is correct, you may ignore stderr and pass. At the end of the block you will vote for one of the available actions by writing "[VOTE: UPDATE]" or "[VOTE: PASS]:'.replace('<NUM ACTIONS>',str(num_actions))

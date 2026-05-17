@@ -2,12 +2,12 @@ import pickle
 import os
 import openai
 import copy
-from utils import run_clingo_external, process_clingo_output, get_error_lines, write_intermediate, get_response_check, save_cache, parse_output_no_verifier, parse_test_programs, get_vote, write_stats, write_stats_openai, write_stats_deepseek, write_stats_deepseek_chat, write_stats_deepseek_v3
-from prompts import verifier_feedback_block, current_modules_prompt, candidate_feedback_prompt, verifier_feedback_prompt, verifiers, feedback_template, main_prompt, resource_prompt
-from utils import check_entailment
-from prompts import candidate_feedback_prompt_both2 as candidate_feedback_prompt_both
+from core.utils import run_clingo_external, process_clingo_output, get_error_lines, write_intermediate, get_response_check, save_cache, parse_output_no_verifier, write_stats, write_stats_openai, write_stats_deepseek, write_stats_deepseek_chat, write_stats_deepseek_v3
+from core.prompts import current_modules_prompt, candidate_feedback_prompt, verifier_feedback_prompt, resource_prompt
+from core.utils import check_entailment
+from core.prompts import candidate_feedback_prompt_both
 
-from prompts_post_output import prompt_formatter, prompt_evaluator
+from core.prompts_post_output import prompt_formatter, prompt_evaluator
 
 import argparse
 from argparse import RawTextHelpFormatter
@@ -36,12 +36,8 @@ if not args.o:
     args.o = args.dataset
 assert args.dataset =='boardgameQA'
 
-from prompts import test_case_prompt, gen_test_prog_prompt, analysis_prompt, analyses_aggregate
-
-
-from prompts import debugger_prompt_resource_v2_2 as debugger_prompt
-
-from prompts import writeActions_no_ver_full_prog as writeActions_no_ver
+from core.prompts import debugger_prompt_resource_v2_2 as debugger_prompt
+from core.prompts import writeActions_no_ver_full_prog as writeActions_no_ver
 
 
 def processOutputs(stdout, stderr, exit_code, current_modules):
@@ -234,7 +230,7 @@ current_modules = None
 current_output = None
 all_verifier_feedback = None
 
-from load_datasets import loaders_dict, meta_prompts_dict, formatter_instructions_dict
+from core.load_datasets import loaders_dict, meta_prompts_dict, formatter_instructions_dict
 
 
 # =============================================================================
