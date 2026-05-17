@@ -1,7 +1,9 @@
-# LLM + ASP
+# LLMs as ASP Programmers: Self-Correction Enables Task-Agnostic Nonmonotonic Reasoning
+
+This is the official repository for the paper **"LLMs as ASP Programmers: Self-Correction Enables Task-Agnostic Nonmonotonic Reasoning"** published in **Findings of ACL**.
 
 # Introduction
-LLM coupled with ASP for complex reasoning.
+LLMs as ASP Programmers (LLM-ASP) is a framework that couples Large Language Models with Answer Set Programming (ASP) to solve complex reasoning tasks. By leveraging ASP's declarative nature and utilizing a self-correction loop, this approach enables task-agnostic nonmonotonic reasoning.
 
 ## Repository Structure
 Below is an overview of the directory structure and the purpose of each folder and file:
